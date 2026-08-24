@@ -95,11 +95,13 @@ export interface NovoPerfumeInput {
   custoMl?: number | null;
   fornecedorNome?: string;
   estoqueMl?: number;
+  postarNoGrupo?: boolean;
 }
 
 /** Cria um perfume novo direto pelo painel: grava no banco e também adiciona a
  * linha correspondente na planilha (com o id já preenchido), pra ficar do mesmo
- * jeito que um perfume criado via planilha + sync. */
+ * jeito que um perfume criado via planilha + sync — inclusive o "postar no
+ * grupo": se marcado, o próximo sync publica ele, igual à planilha. */
 export async function criarPerfume(input: NovoPerfumeInput): Promise<Perfume> {
   const nome = input.nome?.trim();
   if (!nome) throw new Error("Nome é obrigatório.");
@@ -129,7 +131,8 @@ export async function criarPerfume(input: NovoPerfumeInput): Promise<Perfume> {
 
   const sheetRow = await appendRow("Perfumes!A2:O", [
     id, nome, marca ?? "", composicao ?? "", fotoUrl ?? "", input.mlFrasco, input.precoMl,
-    input.custoMl ?? "", fornecedorNome ?? "", estoqueMl, "ativo", "", "", "", fragranticaUrl ?? "",
+    input.custoMl ?? "", fornecedorNome ?? "", estoqueMl, "ativo",
+    input.postarNoGrupo ? "TRUE" : "", "", "", fragranticaUrl ?? "",
   ]);
   if (sheetRow) {
     await query("UPDATE perfumes SET sheet_row = $1 WHERE id = $2", [sheetRow, id]);

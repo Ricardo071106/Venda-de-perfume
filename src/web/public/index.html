@@ -198,6 +198,10 @@
           <div><label class="field-label">Foto (URL)</label><input class="field" name="fotoUrl" type="url" /></div>
           <div><label class="field-label">Fragrantica (URL)</label><input class="field" name="fragranticaUrl" type="url" /></div>
         </div>
+        <label style="display:flex; align-items:center; gap:6px; font-size:13px; margin-bottom:12px;">
+          <input type="checkbox" name="postarNoGrupo" />
+          Postar no grupo do WhatsApp no próximo "Atualizar agora"
+        </label>
         <button type="submit">Adicionar perfume</button>
       </form>
     </figure>
@@ -620,6 +624,7 @@
       composicao: dados.composicao || undefined,
       fotoUrl: dados.fotoUrl || undefined,
       fragranticaUrl: dados.fragranticaUrl || undefined,
+      postarNoGrupo: dados.postarNoGrupo === "on",
     };
     const btn = form.querySelector("button[type=submit]");
     btn.disabled = true;
