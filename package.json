@@ -1,0 +1,33 @@
+{
+  "name": "perfume-ml-bot",
+  "version": "0.1.0",
+  "description": "Sync entre Google Sheets, Postgres e WhatsApp (Evolution API) para venda de perfumes a ml",
+  "private": true,
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx watch src/index.ts",
+    "start": "node dist/index.js",
+    "migrate": "tsx db/migrate.ts",
+    "setup-sheets": "tsx scripts/setup-sheet-tabs.ts"
+  },
+  "dependencies": {
+    "@hapi/boom": "^10.0.1",
+    "@whiskeysockets/baileys": "^6.7.24",
+    "dotenv": "^16.4.5",
+    "express": "^5.2.1",
+    "googleapis": "^140.0.1",
+    "pg": "^8.12.0",
+    "pino": "^10.3.1",
+    "qrcode-terminal": "^0.12.0"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.6",
+    "@types/node": "^20.14.9",
+    "@types/pg": "^8.11.6",
+    "@types/qrcode-terminal": "^0.12.2",
+    "tsx": "^4.16.2",
+    "typescript": "^5.5.3"
+  }
+}

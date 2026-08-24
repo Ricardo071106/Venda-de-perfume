@@ -1,0 +1,648 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Painel — Perfume ML Bot</title>
+<style>
+  :root {
+    color-scheme: light;
+    --surface-1:      #fcfcfb;
+    --page:           #f9f9f7;
+    --text-primary:   #0b0b0b;
+    --text-secondary: #52514e;
+    --text-muted:     #898781;
+    --gridline:       #e1e0d9;
+    --baseline:       #c3c2b7;
+    --border:         rgba(11,11,11,0.10);
+    --series-1:       #2a78d6; /* vendas (receita) */
+    --series-2:       #eb6834; /* estoque */
+    --good:           #006300;
+    --bad:            #b3261e;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      color-scheme: dark;
+      --surface-1:      #1a1a19;
+      --page:           #0d0d0d;
+      --text-primary:   #ffffff;
+      --text-secondary: #c3c2b7;
+      --text-muted:     #898781;
+      --gridline:       #2c2c2a;
+      --baseline:       #383835;
+      --border:         rgba(255,255,255,0.10);
+      --series-1:       #3987e5;
+      --series-2:       #d95926;
+      --good:           #0ca30c;
+      --bad:            #ff6f66;
+    }
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--page);
+    color: var(--text-primary);
+    font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 1040px; margin: 0 auto; padding: 24px 20px 64px; }
+
+  header { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 24px; flex-wrap: wrap; }
+  h1 { font-size: 20px; font-weight: 600; margin: 0; }
+  .sync-status { font-size: 13px; color: var(--text-muted); margin-top: 4px; }
+  .sync-status.erro { color: var(--series-2); }
+
+  button {
+    font: inherit; font-weight: 600; font-size: 14px;
+    background: var(--series-1); color: #fff; border: none;
+    padding: 10px 18px; border-radius: 8px; cursor: pointer;
+  }
+  button:disabled { opacity: 0.6; cursor: default; }
+  button:hover:not(:disabled) { filter: brightness(1.08); }
+
+  .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 28px; }
+  .tile {
+    background: var(--surface-1); border: 1px solid var(--border); border-radius: 12px;
+    padding: 16px;
+  }
+  .tile .label { font-size: 12px; color: var(--text-secondary); margin-bottom: 6px; }
+  .tile .value { font-size: 24px; font-weight: 600; font-variant-numeric: proportional-nums; }
+
+  .charts { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 28px; }
+  @media (max-width: 720px) { .charts { grid-template-columns: 1fr; } }
+
+  figure {
+    margin: 0; background: var(--surface-1); border: 1px solid var(--border);
+    border-radius: 12px; padding: 18px;
+  }
+  figcaption { font-size: 13px; font-weight: 600; color: var(--text-secondary); margin-bottom: 14px; }
+  .bar-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+  .bar-row:last-child { margin-bottom: 0; }
+  .bar-name { flex: 0 0 110px; font-size: 12px; color: var(--text-secondary); text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .bar-track { flex: 1; position: relative; height: 20px; background: var(--gridline); border-radius: 4px; overflow: hidden; }
+  .bar-fill { height: 100%; border-radius: 4px 0 0 4px; }
+  .bar-fill.rounded-end { border-radius: 4px; }
+  .bar-value { flex: 0 0 auto; font-size: 12px; color: var(--text-secondary); min-width: 70px; }
+  .empty { font-size: 13px; color: var(--text-muted); }
+
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--gridline); }
+  th { color: var(--text-muted); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.03em; }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .origem-tag { font-size: 11px; padding: 2px 7px; border-radius: 999px; background: var(--gridline); color: var(--text-secondary); }
+  .muted { color: var(--text-muted); font-weight: 400; }
+
+  .status-tag { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 999px; white-space: nowrap; }
+  .status-ativo { background: color-mix(in srgb, var(--good) 16%, transparent); color: var(--good); }
+  .status-esgotado { background: color-mix(in srgb, var(--bad) 16%, transparent); color: var(--bad); }
+
+  .venda-form { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .ml-input, .cliente-input, .field {
+    font: inherit; font-size: 13px; padding: 6px 8px; border-radius: 6px;
+    border: 1px solid var(--border); background: var(--page); color: var(--text-primary);
+  }
+  .ml-input { width: 84px; }
+  .cliente-input { width: 130px; }
+  .valor-preview { font-size: 12px; color: var(--text-secondary); min-width: 62px; }
+  .btn-vender { padding: 6px 14px; font-size: 13px; }
+
+  .tabs { display: flex; gap: 6px; margin-bottom: 20px; border-bottom: 1px solid var(--gridline); }
+  .tab-btn {
+    background: transparent; color: var(--text-secondary); font-weight: 600; font-size: 13px;
+    padding: 10px 4px; border-radius: 0; border-bottom: 2px solid transparent; margin-right: 14px;
+  }
+  .tab-btn:hover:not(:disabled) { filter: none; color: var(--text-primary); }
+  .tab-btn.active { color: var(--text-primary); border-bottom-color: var(--series-1); }
+  .tab-panel[hidden] { display: none; }
+
+  .form-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; margin-bottom: 12px; }
+  .form-grid .field { width: 100%; }
+  .field-label { display: block; font-size: 11px; color: var(--text-muted); margin-bottom: 4px; }
+
+  .table-scroll { overflow-x: auto; }
+  .table-scroll table { min-width: 920px; }
+  .btn-secondary { background: var(--gridline); color: var(--text-primary); }
+  .btn-danger { background: var(--bad); }
+  .btn-sm { padding: 5px 10px; font-size: 12px; }
+  .row-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+  .ajuste-form { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .ajuste-form .ml-input { width: 70px; }
+  .motivo-input { width: 150px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Perfume ML Bot — Painel</h1>
+      <div class="sync-status" id="syncStatus">Carregando…</div>
+    </div>
+    <button id="btnSync">Atualizar agora</button>
+  </header>
+
+  <nav class="tabs">
+    <button class="tab-btn active" data-tab="dashboard" type="button">Dashboard</button>
+    <button class="tab-btn" data-tab="ajuste" type="button">Ajuste rápido</button>
+    <button class="tab-btn" data-tab="todos" type="button">Todos os perfumes</button>
+  </nav>
+
+  <section id="tab-dashboard" class="tab-panel">
+    <div class="kpis" id="kpis"></div>
+
+    <figure style="margin-bottom: 28px;">
+      <figcaption>Perfumes — status e venda rápida</figcaption>
+      <table id="tabelaPerfumes">
+        <thead>
+          <tr><th>Perfume</th><th class="num">Estoque</th><th>Status</th><th colspan="2">Registrar venda</th></tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </figure>
+
+    <div class="charts">
+      <figure>
+        <figcaption>Vendas por perfume (receita)</figcaption>
+        <div id="chartVendas"></div>
+      </figure>
+      <figure>
+        <figcaption>Estoque por perfume (ml)</figcaption>
+        <div id="chartEstoque"></div>
+      </figure>
+    </div>
+
+    <figure>
+      <figcaption>Vendas recentes</figcaption>
+      <table id="tabelaVendas">
+        <thead>
+          <tr><th>Perfume</th><th>Cliente</th><th class="num">ml</th><th class="num">Valor</th><th>Origem</th><th>Data</th></tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </figure>
+  </section>
+
+  <section id="tab-ajuste" class="tab-panel" hidden>
+    <figure style="margin-bottom: 20px;">
+      <figcaption>Adicionar perfume</figcaption>
+      <form id="formNovoPerfume">
+        <div class="form-grid">
+          <div><label class="field-label">Nome *</label><input class="field" name="nome" required /></div>
+          <div><label class="field-label">Marca</label><input class="field" name="marca" /></div>
+          <div><label class="field-label">Fornecedor</label><input class="field" name="fornecedorNome" /></div>
+          <div><label class="field-label">ml do frasco *</label><input class="field" name="mlFrasco" type="number" step="0.1" required /></div>
+          <div><label class="field-label">Estoque inicial (ml)</label><input class="field" name="estoqueMl" type="number" step="0.1" placeholder="= ml do frasco" /></div>
+          <div><label class="field-label">Preço/ml (R$) *</label><input class="field" name="precoMl" type="number" step="0.01" required /></div>
+          <div><label class="field-label">Custo/ml (R$)</label><input class="field" name="custoMl" type="number" step="0.01" /></div>
+          <div><label class="field-label">Composição</label><input class="field" name="composicao" /></div>
+          <div><label class="field-label">Foto (URL)</label><input class="field" name="fotoUrl" type="url" /></div>
+          <div><label class="field-label">Fragrantica (URL)</label><input class="field" name="fragranticaUrl" type="url" /></div>
+        </div>
+        <button type="submit">Adicionar perfume</button>
+      </form>
+    </figure>
+
+    <figure>
+      <figcaption>Ajustar estoque / remover perfume</figcaption>
+      <div class="table-scroll">
+        <table id="tabelaAjuste">
+          <thead>
+            <tr><th>Perfume</th><th class="num">Estoque</th><th>Status</th><th>Ajuste (+/- ml)</th><th>Remover</th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </figure>
+  </section>
+
+  <section id="tab-todos" class="tab-panel" hidden>
+    <figure>
+      <figcaption>Todos os perfumes — editar tudo</figcaption>
+      <div class="table-scroll">
+        <table id="tabelaTodos">
+          <thead>
+            <tr>
+              <th>Nome</th><th>Marca</th><th>Composição</th><th>Fornecedor</th>
+              <th class="num">ml frasco</th><th class="num">Preço/ml</th><th class="num">Custo/ml</th>
+              <th>Foto</th><th>Fragrantica</th><th class="num">Estoque</th><th>Status</th><th>Ações</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </figure>
+  </section>
+</div>
+
+<script>
+  function formatarMoeda(v) {
+    return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+  }
+  function formatarMl(v) {
+    return v.toLocaleString("pt-BR", { maximumFractionDigits: 1 }) + "ml";
+  }
+  function formatarData(iso) {
+    return new Date(iso).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+  }
+  function escapeAttr(s) {
+    return String(s).replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
+  }
+
+  let ultimosPerfumes = [];
+  const idsEditando = new Set();
+
+  function renderKpis(s) {
+    const el = document.getElementById("kpis");
+    el.innerHTML = [
+      ["Perfumes ativos", s.totalPerfumesAtivos.toLocaleString("pt-BR")],
+      ["Estoque total", formatarMl(s.estoqueTotalMl)],
+      ["Total vendido", formatarMl(s.totalVendidoMl)],
+      ["Receita total", formatarMoeda(s.receitaTotal)],
+      ["Lucro total", formatarMoeda(s.lucroTotal)],
+    ].map(([label, value]) => \`
+      <div class="tile">
+        <div class="label">\${label}</div>
+        <div class="value">\${value}</div>
+      </div>
+    \`).join("");
+  }
+
+  function renderBarChart(containerId, dados, corVar, formatarValor) {
+    const el = document.getElementById(containerId);
+    if (!dados.length) {
+      el.innerHTML = '<div class="empty">Sem dados ainda.</div>';
+      return;
+    }
+    const max = Math.max(...dados.map((d) => d.valor));
+    el.innerHTML = dados.map((d) => {
+      const pct = max > 0 ? Math.max((d.valor / max) * 100, 3) : 0;
+      return \`
+        <div class="bar-row">
+          <div class="bar-name" title="\${d.nome}">\${d.nome}</div>
+          <div class="bar-track">
+            <div class="bar-fill rounded-end" style="width:\${pct}%; background:var(\${corVar})"></div>
+          </div>
+          <div class="bar-value">\${formatarValor(d.valor)}</div>
+        </div>
+      \`;
+    }).join("");
+  }
+
+  function renderPerfumes(perfumes) {
+    const tbody = document.querySelector("#tabelaPerfumes tbody");
+    if (!perfumes.length) {
+      tbody.innerHTML = '<tr><td colspan="5" class="empty">Nenhum perfume cadastrado ainda.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = perfumes.map((p) => {
+      const esgotado = p.status === "esgotado";
+      const statusLabel = esgotado ? "Esgotado" : "Disponível";
+      const acao = esgotado
+        ? '<span class="empty">—</span>'
+        : \`
+          <div class="venda-form">
+            <input type="number" class="ml-input" data-id="\${p.id}" data-preco="\${p.precoMl}"
+                   min="0.5" step="0.5" max="\${p.estoqueMl}" placeholder="ml" />
+            <input type="text" class="cliente-input" data-id="\${p.id}" placeholder="cliente (opcional)" />
+            <span class="valor-preview" data-preview="\${p.id}"></span>
+          </div>
+        \`;
+      const botao = esgotado ? "" : \`<button class="btn-vender" data-id="\${p.id}">Vender</button>\`;
+      return \`
+        <tr>
+          <td>\${p.nome}\${p.marca ? \` <span class="muted">(\${p.marca})</span>\` : ""}</td>
+          <td class="num">\${formatarMl(p.estoqueMl)}</td>
+          <td><span class="status-tag status-\${p.status}">\${statusLabel}</span></td>
+          <td>\${acao}</td>
+          <td>\${botao}</td>
+        </tr>
+      \`;
+    }).join("");
+
+    tbody.querySelectorAll(".ml-input").forEach((input) => {
+      input.addEventListener("input", () => {
+        const preco = Number(input.dataset.preco);
+        const ml = Number(input.value) || 0;
+        const preview = tbody.querySelector(\`[data-preview="\${input.dataset.id}"]\`);
+        preview.textContent = ml > 0 ? formatarMoeda(ml * preco) : "";
+      });
+    });
+
+    tbody.querySelectorAll(".btn-vender").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const id = btn.dataset.id;
+        const mlInput = tbody.querySelector(\`.ml-input[data-id="\${id}"]\`);
+        const clienteInput = tbody.querySelector(\`.cliente-input[data-id="\${id}"]\`);
+        const ml = Number(mlInput.value);
+        if (!ml || ml <= 0) {
+          alert("Informe quantos ml foram vendidos.");
+          return;
+        }
+        btn.disabled = true;
+        btn.textContent = "Registrando…";
+        try {
+          const res = await fetch("/api/vendas", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ perfumeId: Number(id), mlVendido: ml, clienteNome: clienteInput.value }),
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.erro || "Erro ao registrar venda");
+          await carregarTudo();
+        } catch (err) {
+          alert("Erro: " + err.message);
+          btn.disabled = false;
+          btn.textContent = "Vender";
+        }
+      });
+    });
+  }
+
+  function renderAjuste(perfumes) {
+    const tbody = document.querySelector("#tabelaAjuste tbody");
+    if (!perfumes.length) {
+      tbody.innerHTML = '<tr><td colspan="5" class="empty">Nenhum perfume cadastrado ainda.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = perfumes.map((p) => {
+      const esgotado = p.status === "esgotado";
+      return \`
+        <tr>
+          <td>\${p.nome}\${p.marca ? \` <span class="muted">(\${p.marca})</span>\` : ""}</td>
+          <td class="num">\${formatarMl(p.estoqueMl)}</td>
+          <td><span class="status-tag status-\${p.status}">\${esgotado ? "Esgotado" : "Disponível"}</span></td>
+          <td>
+            <div class="ajuste-form">
+              <input type="number" class="ml-input ajuste-ml" data-id="\${p.id}" step="0.5" placeholder="+/- ml" />
+              <input type="text" class="motivo-input" data-id="\${p.id}" placeholder="motivo (opcional)" />
+              <button class="btn-secondary btn-sm btn-ajustar" data-id="\${p.id}">Aplicar</button>
+            </div>
+          </td>
+          <td><button class="btn-danger btn-sm btn-remover" data-id="\${p.id}">Remover</button></td>
+        </tr>
+      \`;
+    }).join("");
+
+    tbody.querySelectorAll(".btn-ajustar").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const id = btn.dataset.id;
+        const mlInput = tbody.querySelector(\`.ajuste-ml[data-id="\${id}"]\`);
+        const motivoInput = tbody.querySelector(\`.motivo-input[data-id="\${id}"]\`);
+        const delta = Number(mlInput.value);
+        if (!delta) {
+          alert("Informe uma quantidade diferente de zero (positiva pra adicionar, negativa pra tirar).");
+          return;
+        }
+        btn.disabled = true;
+        try {
+          const res = await fetch(\`/api/perfumes/\${id}/ajuste-estoque\`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ deltaMl: delta, motivo: motivoInput.value }),
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.erro || "Erro ao ajustar estoque");
+          await carregarTudo();
+        } catch (err) {
+          alert("Erro: " + err.message);
+          btn.disabled = false;
+        }
+      });
+    });
+
+    tbody.querySelectorAll(".btn-remover").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const id = btn.dataset.id;
+        const nome = perfumes.find((p) => String(p.id) === id)?.nome ?? "";
+        if (!confirm(\`Remover "\${nome}" do catálogo? Só funciona se ele não tiver vendas registradas.\`)) return;
+        btn.disabled = true;
+        try {
+          const res = await fetch(\`/api/perfumes/\${id}\`, { method: "DELETE" });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.erro || "Erro ao remover perfume");
+          await carregarTudo();
+        } catch (err) {
+          alert("Erro: " + err.message);
+          btn.disabled = false;
+        }
+      });
+    });
+  }
+
+  function renderTodos(perfumes) {
+    const tbody = document.querySelector("#tabelaTodos tbody");
+    if (!perfumes.length) {
+      tbody.innerHTML = '<tr><td colspan="12" class="empty">Nenhum perfume cadastrado ainda.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = perfumes.map((p) => {
+      const editando = idsEditando.has(p.id);
+      const statusHtml = \`<span class="status-tag status-\${p.status}">\${p.status === "esgotado" ? "Esgotado" : "Disponível"}</span>\`;
+      if (!editando) {
+        return \`
+          <tr data-row="\${p.id}">
+            <td>\${p.nome}</td>
+            <td>\${p.marca ?? ""}</td>
+            <td>\${p.composicao ?? ""}</td>
+            <td>\${p.fornecedorNome ?? ""}</td>
+            <td class="num">\${formatarMl(p.mlFrasco)}</td>
+            <td class="num">\${formatarMoeda(p.precoMl)}</td>
+            <td class="num">\${p.custoMl != null ? formatarMoeda(p.custoMl) : "—"}</td>
+            <td>\${p.fotoUrl ? \`<a href="\${p.fotoUrl}" target="_blank" rel="noopener">link</a>\` : "—"}</td>
+            <td>\${p.fragranticaUrl ? \`<a href="\${p.fragranticaUrl}" target="_blank" rel="noopener">link</a>\` : "—"}</td>
+            <td class="num">\${formatarMl(p.estoqueMl)}</td>
+            <td>\${statusHtml}</td>
+            <td class="row-actions"><button class="btn-secondary btn-sm btn-editar" data-id="\${p.id}">Editar</button></td>
+          </tr>
+        \`;
+      }
+      return \`
+        <tr data-row="\${p.id}">
+          <td><input class="field campo" data-campo="nome" value="\${escapeAttr(p.nome)}" /></td>
+          <td><input class="field campo" data-campo="marca" value="\${escapeAttr(p.marca ?? "")}" /></td>
+          <td><input class="field campo" data-campo="composicao" value="\${escapeAttr(p.composicao ?? "")}" /></td>
+          <td><input class="field campo" data-campo="fornecedorNome" value="\${escapeAttr(p.fornecedorNome ?? "")}" /></td>
+          <td><input class="field campo" data-campo="mlFrasco" type="number" step="0.1" value="\${p.mlFrasco}" /></td>
+          <td><input class="field campo" data-campo="precoMl" type="number" step="0.01" value="\${p.precoMl}" /></td>
+          <td><input class="field campo" data-campo="custoMl" type="number" step="0.01" value="\${p.custoMl ?? ""}" /></td>
+          <td><input class="field campo" data-campo="fotoUrl" type="url" value="\${escapeAttr(p.fotoUrl ?? "")}" /></td>
+          <td><input class="field campo" data-campo="fragranticaUrl" type="url" value="\${escapeAttr(p.fragranticaUrl ?? "")}" /></td>
+          <td class="num">\${formatarMl(p.estoqueMl)}</td>
+          <td>\${statusHtml}</td>
+          <td class="row-actions">
+            <button class="btn-sm btn-salvar" data-id="\${p.id}">Salvar</button>
+            <button class="btn-secondary btn-sm btn-cancelar" data-id="\${p.id}">Cancelar</button>
+          </td>
+        </tr>
+      \`;
+    }).join("");
+
+    tbody.querySelectorAll(".btn-editar").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        idsEditando.add(Number(btn.dataset.id));
+        renderTodos(ultimosPerfumes);
+      });
+    });
+    tbody.querySelectorAll(".btn-cancelar").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        idsEditando.delete(Number(btn.dataset.id));
+        renderTodos(ultimosPerfumes);
+      });
+    });
+    tbody.querySelectorAll(".btn-salvar").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const id = btn.dataset.id;
+        const row = tbody.querySelector(\`tr[data-row="\${id}"]\`);
+        const campos = {};
+        row.querySelectorAll(".campo").forEach((input) => {
+          const nomeCampo = input.dataset.campo;
+          if (nomeCampo === "mlFrasco" || nomeCampo === "precoMl") campos[nomeCampo] = Number(input.value);
+          else if (nomeCampo === "custoMl") campos[nomeCampo] = input.value === "" ? null : Number(input.value);
+          else campos[nomeCampo] = input.value;
+        });
+        btn.disabled = true;
+        try {
+          const res = await fetch(\`/api/perfumes/\${id}\`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(campos),
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.erro || "Erro ao salvar");
+          idsEditando.delete(Number(id));
+          await carregarTudo();
+        } catch (err) {
+          alert("Erro: " + err.message);
+          btn.disabled = false;
+        }
+      });
+    });
+  }
+
+  function renderTabela(vendas) {
+    const tbody = document.querySelector("#tabelaVendas tbody");
+    if (!vendas.length) {
+      tbody.innerHTML = '<tr><td colspan="6" class="empty">Nenhuma venda registrada ainda.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = vendas.map((v) => \`
+      <tr>
+        <td>\${v.perfume}</td>
+        <td>\${v.cliente}</td>
+        <td class="num">\${formatarMl(v.ml)}</td>
+        <td class="num">\${formatarMoeda(v.valor)}</td>
+        <td><span class="origem-tag">\${v.origem === "whatsapp_bot" ? "WhatsApp" : "Planilha"}</span></td>
+        <td>\${formatarData(v.data)}</td>
+      </tr>
+    \`).join("");
+  }
+
+  function renderSyncStatus(ultimo) {
+    const el = document.getElementById("syncStatus");
+    if (!ultimo) {
+      el.textContent = "Ainda não sincronizou nesta sessão.";
+      return;
+    }
+    const quando = formatarData(ultimo.executadoEm);
+    if (ultimo.ok) {
+      const postados = ultimo.perfumesPostados.length
+        ? \` · \${ultimo.perfumesPostados.length} perfume(s) postado(s)\`
+        : "";
+      el.textContent = \`Última sincronização: \${quando}\${postados}\`;
+      el.classList.remove("erro");
+    } else {
+      el.textContent = \`Falha na última sincronização (\${quando}): \${ultimo.erro}\`;
+      el.classList.add("erro");
+    }
+  }
+
+  async function carregarStats() {
+    const res = await fetch("/api/stats");
+    if (!res.ok) throw new Error("Falha ao carregar estatísticas");
+    const { stats, ultimaSincronizacao } = await res.json();
+    renderKpis(stats);
+    renderBarChart("chartVendas", stats.vendasPorPerfume, "--series-1", formatarMoeda);
+    renderBarChart("chartEstoque", stats.estoquePorPerfume, "--series-2", formatarMl);
+    renderTabela(stats.vendasRecentes);
+    renderSyncStatus(ultimaSincronizacao);
+  }
+
+  async function carregarPerfumes() {
+    const res = await fetch("/api/perfumes");
+    if (!res.ok) throw new Error("Falha ao carregar perfumes");
+    const { perfumes } = await res.json();
+    ultimosPerfumes = perfumes;
+    renderPerfumes(perfumes);
+    renderAjuste(perfumes);
+    renderTodos(perfumes);
+  }
+
+  async function carregarTudo() {
+    await Promise.all([carregarStats(), carregarPerfumes()]);
+  }
+
+  document.getElementById("btnSync").addEventListener("click", async () => {
+    const btn = document.getElementById("btnSync");
+    btn.disabled = true;
+    btn.textContent = "Sincronizando…";
+    try {
+      await fetch("/api/sync", { method: "POST" });
+      await carregarTudo();
+    } catch (err) {
+      alert("Erro ao sincronizar: " + err.message);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = "Atualizar agora";
+    }
+  });
+
+  document.querySelectorAll(".tab-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      document.querySelectorAll(".tab-btn").forEach((b) => b.classList.remove("active"));
+      document.querySelectorAll(".tab-panel").forEach((p) => (p.hidden = true));
+      btn.classList.add("active");
+      document.getElementById(\`tab-\${btn.dataset.tab}\`).hidden = false;
+    });
+  });
+
+  document.getElementById("formNovoPerfume").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const form = e.target;
+    const dados = Object.fromEntries(new FormData(form).entries());
+    const payload = {
+      nome: dados.nome,
+      marca: dados.marca || undefined,
+      fornecedorNome: dados.fornecedorNome || undefined,
+      mlFrasco: Number(dados.mlFrasco),
+      estoqueMl: dados.estoqueMl ? Number(dados.estoqueMl) : undefined,
+      precoMl: Number(dados.precoMl),
+      custoMl: dados.custoMl ? Number(dados.custoMl) : undefined,
+      composicao: dados.composicao || undefined,
+      fotoUrl: dados.fotoUrl || undefined,
+      fragranticaUrl: dados.fragranticaUrl || undefined,
+    };
+    const btn = form.querySelector("button[type=submit]");
+    btn.disabled = true;
+    try {
+      const res = await fetch("/api/perfumes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.erro || "Erro ao criar perfume");
+      form.reset();
+      await carregarTudo();
+    } catch (err) {
+      alert("Erro: " + err.message);
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
+  carregarTudo().catch((err) => {
+    document.getElementById("syncStatus").textContent = "Erro ao carregar: " + err.message;
+  });
+</script>
+</body>
+</html>
