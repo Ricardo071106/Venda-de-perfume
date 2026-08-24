@@ -15,8 +15,14 @@ export const config = {
   },
 
   google: {
+    // Local: aponta pro arquivo baixado do Google Cloud. Produção (Render): em vez de
+    // subir um arquivo, cole o conteúdo dele em base64 numa variável de ambiente comum —
+    // client.ts usa qual dos dois estiver preenchido (base64 tem prioridade).
     get serviceAccountJsonPath() {
-      return required("GOOGLE_SERVICE_ACCOUNT_JSON_PATH");
+      return process.env.GOOGLE_SERVICE_ACCOUNT_JSON_PATH || null;
+    },
+    get serviceAccountJsonBase64() {
+      return process.env.GOOGLE_SERVICE_ACCOUNT_JSON_BASE64 || null;
     },
     get spreadsheetId() {
       return required("GOOGLE_SPREADSHEET_ID");

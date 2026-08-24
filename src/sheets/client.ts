@@ -1,8 +1,21 @@
 import { google } from "googleapis";
 import { config } from "../config.js";
 
+function credenciaisGoogle(): { credentials: object } | { keyFile: string } {
+  if (config.google.serviceAccountJsonBase64) {
+    const json = Buffer.from(config.google.serviceAccountJsonBase64, "base64").toString("utf-8");
+    return { credentials: JSON.parse(json) };
+  }
+  if (config.google.serviceAccountJsonPath) {
+    return { keyFile: config.google.serviceAccountJsonPath };
+  }
+  throw new Error(
+    "Configure GOOGLE_SERVICE_ACCOUNT_JSON_BASE64 (produção) ou GOOGLE_SERVICE_ACCOUNT_JSON_PATH (local)."
+  );
+}
+
 const auth = new google.auth.GoogleAuth({
-  keyFile: config.google.serviceAccountJsonPath,
+  ...credenciaisGoogle(),
   scopes: ["https://www.googleapis.com/auth/spreadsheets"],
 });
 
