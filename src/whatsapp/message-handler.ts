@@ -26,18 +26,19 @@ function extrairMensagem(msg: WAMessage): {
  * comando de venda reconhecido (ver whatsapp/commands.ts). */
 export async function tratarMensagemRecebida(msg: WAMessage): Promise<void> {
   const dados = extrairMensagem(msg);
-  if (dados.fromMe || !dados.texto) return;
+  if (!dados.remoteJid) return;
 
   // WHATSAPP_GROUP_ID ainda não configurado: em vez de travar (config.whatsapp.groupId
-  // lançaria erro), loga o remoteJid de toda mensagem recebida — é assim que você
-  // descobre o ID certo pra colar no .env/Render (manda um teste no grupo e olha aqui).
+  // lançaria erro), loga o remoteJid de toda mensagem recebida — inclusive as suas
+  // próprias (fromMe), já que testar mandando pelo número do próprio bot é comum.
+  // É assim que você descobre o ID certo pra colar no .env/Render.
   const groupIdConfigurado = process.env.WHATSAPP_GROUP_ID?.trim();
   if (!groupIdConfigurado) {
     console.log(`[setup] Mensagem recebida em "${dados.remoteJid}" — se for o grupo certo, copie esse valor pro WHATSAPP_GROUP_ID.`);
     return;
   }
 
-  if (!dados.quotedMessageId) return;
+  if (dados.fromMe || !dados.texto || !dados.quotedMessageId) return;
   if (dados.remoteJid !== groupIdConfigurado) return;
   if (!config.adminPhoneNumbers.includes(dados.senderPhone)) return;
 
