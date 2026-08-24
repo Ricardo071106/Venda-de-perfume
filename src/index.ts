@@ -4,8 +4,14 @@ import { tratarMensagemRecebida } from "./whatsapp/message-handler.js";
 import { iniciarPainelAdmin } from "./web/server.js";
 
 async function main() {
-  await iniciarWhatsApp(tratarMensagemRecebida);
+  // O painel sobe primeiro e sozinho: não pode ficar refém de o WhatsApp conectar
+  // (rede lenta, QR pendente, falha) — senão o serviço nunca responde no Render.
   iniciarPainelAdmin();
+
+  iniciarWhatsApp(tratarMensagemRecebida).catch((err) => {
+    console.error("Falha ao conectar ao WhatsApp:", err);
+  });
+
   await rodarSync(); // roda uma vez ao subir; depois só via botão "Atualizar agora" do painel
 }
 
