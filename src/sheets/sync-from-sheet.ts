@@ -122,10 +122,12 @@ export async function syncPerfumesFromSheet(): Promise<PerfumeParaPostar[]> {
         nome, marca: marca ?? "", composicao: composicao ?? "", mlFrasco, precoMl,
         fotoUrl: fotoUrl ?? "", fragranticaUrl: fragranticaUrl ?? "",
       });
+      // ultimo_conteudo_postado nulo com postado_em preenchido = perfume publicado antes
+      // desse controle existir (sem retrato pra comparar) — trata como "mudou" também,
+      // pra não ficar travado pra sempre sem nunca republicar.
       if (
         jaPublicado?.postado_em &&
         statusAtual === "ativo" &&
-        jaPublicado.ultimo_conteudo_postado !== null &&
         jaPublicado.ultimo_conteudo_postado !== conteudoAtual
       ) {
         precisaRepublicar = true;
