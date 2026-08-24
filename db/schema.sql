@@ -24,6 +24,7 @@ CREATE TABLE IF NOT EXISTS perfumes (
     status TEXT NOT NULL DEFAULT 'ativo' CHECK (status IN ('ativo', 'esgotado')),
     sheet_row INTEGER, -- linha correspondente na aba "Perfumes" do Sheets
     postado_em TIMESTAMPTZ, -- quando foi postado no grupo (NULL = ainda não postado)
+    ultimo_conteudo_postado TEXT, -- retrato (nome/marca/composição/ml/preço/foto/fragrantica) da última vez que foi postado — usado pra saber se mudou algo e vale republicar
     criado_em TIMESTAMPTZ NOT NULL DEFAULT now(),
     atualizado_em TIMESTAMPTZ NOT NULL DEFAULT now()
 );
@@ -65,6 +66,7 @@ CREATE TABLE IF NOT EXISTS posts_grupo (
 
 -- Idempotente: garante a coluna em bancos que já rodaram uma versão anterior deste schema.
 ALTER TABLE perfumes ADD COLUMN IF NOT EXISTS fragrantica_url TEXT;
+ALTER TABLE perfumes ADD COLUMN IF NOT EXISTS ultimo_conteudo_postado TEXT;
 
 -- Idempotente: bancos criados antes da venda pelo painel só aceitavam 'manual_planilha'/'whatsapp_bot'.
 ALTER TABLE vendas DROP CONSTRAINT IF EXISTS vendas_origem_check;

@@ -4,7 +4,7 @@ import { marcarPerfumePostado } from "../sheets/write-to-sheet.js";
 import { appendRow, readRange, updateCells, clearRange } from "../sheets/client.js";
 import { getOrCreateFornecedorId } from "./fornecedores.js";
 import { registrarAjusteEstoque } from "./estoque.js";
-import type { PerfumeParaPostar } from "../sheets/sync-from-sheet.js";
+import { snapshotConteudoPerfume, type PerfumeParaPostar } from "../sheets/sync-from-sheet.js";
 
 export interface Perfume {
   id: number;
@@ -256,7 +256,8 @@ export async function ajustarEstoquePainel(
   return resultado;
 }
 
-/** Posta um perfume no grupo do WhatsApp e registra o post no banco + na planilha. */
+/** Posta (ou republica, se o conteúdo mudou desde a última vez) um perfume no
+ * grupo do WhatsApp e registra o post no banco + na planilha. */
 export async function postarPerfumeNoGrupo(perfume: PerfumeParaPostar): Promise<void> {
   const legenda = montarLegendaPerfume({
     nome: perfume.nome,
@@ -273,13 +274,15 @@ export async function postarPerfumeNoGrupo(perfume: PerfumeParaPostar): Promise<
     legenda,
   });
 
+  const conteudoPostado = snapshotConteudoPerfume(perfume);
+
   await query(
     "INSERT INTO posts_grupo (perfume_id, whatsapp_message_id) VALUES ($1, $2)",
     [perfume.id, messageId]
   );
   await query(
-    "UPDATE perfumes SET postado_em = now() WHERE id = $1",
-    [perfume.id]
+    "UPDATE perfumes SET postado_em = now(), ultimo_conteudo_postado = $1 WHERE id = $2",
+    [conteudoPostado, perfume.id]
   );
   await marcarPerfumePostado(perfume.sheetRow);
 }

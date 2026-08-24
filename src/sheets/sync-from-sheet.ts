@@ -30,6 +30,30 @@ export interface PerfumeParaPostar {
   sheetRow: number;
 }
 
+/** "Retrato" dos campos que aparecem na legenda do post — usado só pra comparar
+ * se algo relevante mudou desde a última publicação, não pra guardar em outro lugar.
+ * Propositalmente NÃO inclui estoque_ml (mudaria a cada venda, republicaria demais)
+ * nem campos internos (custo, fornecedor) que não aparecem no post. */
+export function snapshotConteudoPerfume(p: {
+  nome: string;
+  marca: string;
+  composicao: string;
+  mlFrasco: number;
+  precoMl: number;
+  fotoUrl: string;
+  fragranticaUrl: string;
+}): string {
+  return JSON.stringify({
+    nome: p.nome,
+    marca: p.marca,
+    composicao: p.composicao,
+    mlFrasco: p.mlFrasco,
+    precoMl: p.precoMl,
+    fotoUrl: p.fotoUrl,
+    fragranticaUrl: p.fragranticaUrl,
+  });
+}
+
 /** Sincroniza a aba Perfumes -> Postgres. Retorna perfumes marcados para postar que ainda não foram postados. */
 export async function syncPerfumesFromSheet(): Promise<PerfumeParaPostar[]> {
   const rows = await readRange(PERFUMES_RANGE);
@@ -53,6 +77,7 @@ export async function syncPerfumesFromSheet(): Promise<PerfumeParaPostar[]> {
 
     let perfumeId: number;
     let estoqueMl: number;
+    let precisaRepublicar = false;
 
     if (idCell?.trim()) {
       // Perfume já existe: estoque_ml e status NÃO vêm da planilha aqui (são espelho
@@ -84,6 +109,27 @@ export async function syncPerfumesFromSheet(): Promise<PerfumeParaPostar[]> {
       }
       await updateCell(`Perfumes!J${sheetRow}`, estoqueMl); // espelha o banco na planilha
       await updateCell(`Perfumes!K${sheetRow}`, statusAtual); // idem pro status ('ativo'/'esgotado')
+
+      // Já foi postado antes e algum campo do post (nome/marca/composição/ml/preço/
+      // foto/fragrantica) mudou desde a última publicação? Marca pra republicar —
+      // não importa se veio de edição na planilha ou no painel (o painel também
+      // escreve nesses mesmos campos da planilha).
+      const [jaPublicado] = await query<{ postado_em: string | null; ultimo_conteudo_postado: string | null }>(
+        "SELECT postado_em, ultimo_conteudo_postado FROM perfumes WHERE id = $1",
+        [perfumeId]
+      );
+      const conteudoAtual = snapshotConteudoPerfume({
+        nome, marca: marca ?? "", composicao: composicao ?? "", mlFrasco, precoMl,
+        fotoUrl: fotoUrl ?? "", fragranticaUrl: fragranticaUrl ?? "",
+      });
+      if (
+        jaPublicado?.postado_em &&
+        statusAtual === "ativo" &&
+        jaPublicado.ultimo_conteudo_postado !== null &&
+        jaPublicado.ultimo_conteudo_postado !== conteudoAtual
+      ) {
+        precisaRepublicar = true;
+      }
     } else {
       // Perfume novo: aqui sim a planilha define o estoque inicial.
       estoqueMl = estoqueMlStr ? Number(estoqueMlStr) : mlFrasco;
@@ -101,7 +147,7 @@ export async function syncPerfumesFromSheet(): Promise<PerfumeParaPostar[]> {
     const jaPostado = Boolean(postado?.trim());
     const deveSerPostado = String(postarNoGrupo).trim().toUpperCase() === "TRUE";
 
-    if (deveSerPostado && !jaPostado) {
+    if ((deveSerPostado && !jaPostado) || precisaRepublicar) {
       paraPostar.push({
         id: perfumeId,
         nome,
