@@ -16,6 +16,7 @@ CREATE TABLE IF NOT EXISTS perfumes (
     sheet_row INTEGER, -- linha correspondente na aba "Perfumes" do Sheets
     postado_em TIMESTAMPTZ, -- quando foi postado no grupo (NULL = ainda não postado)
     ultimo_conteudo_postado TEXT, -- retrato (nome/marca/composição/ml/preço/foto/fragrantica) da última vez que foi postado — usado pra saber se mudou algo e vale republicar
+    estoque_inicial_leilao NUMERIC(10, 2), -- estoque no momento do post/reposição mais recente — base pra calcular as frações vendidas (1/4, 1/3, 1/2, 1/1) no leilão do WhatsApp
     criado_em TIMESTAMPTZ NOT NULL DEFAULT now(),
     atualizado_em TIMESTAMPTZ NOT NULL DEFAULT now()
 );
@@ -55,6 +56,12 @@ CREATE TABLE IF NOT EXISTS posts_grupo (
     data_postagem TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- Configurações globais editáveis pelo painel (chave PIX, texto de endereço etc — não é por perfume).
+CREATE TABLE IF NOT EXISTS configuracoes (
+    chave TEXT PRIMARY KEY,
+    valor TEXT
+);
+
 -- Idempotente: garante a coluna em bancos que já rodaram uma versão anterior deste schema.
 ALTER TABLE perfumes ADD COLUMN IF NOT EXISTS fragrantica_url TEXT;
 ALTER TABLE perfumes ADD COLUMN IF NOT EXISTS ultimo_conteudo_postado TEXT;
@@ -66,6 +73,9 @@ ALTER TABLE vendas ADD CONSTRAINT vendas_origem_check CHECK (origem IN ('manual_
 -- Idempotente: remove o conceito de fornecedor (não é mais usado).
 ALTER TABLE perfumes DROP COLUMN IF EXISTS fornecedor_id;
 DROP TABLE IF EXISTS fornecedores;
+
+-- Idempotente: garante a coluna em bancos que já rodaram uma versão anterior deste schema.
+ALTER TABLE perfumes ADD COLUMN IF NOT EXISTS estoque_inicial_leilao NUMERIC(10, 2);
 
 CREATE INDEX IF NOT EXISTS idx_vendas_perfume ON vendas(perfume_id);
 CREATE INDEX IF NOT EXISTS idx_estoque_perfume ON estoque_movimentos(perfume_id);

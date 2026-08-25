@@ -184,6 +184,24 @@
 
   <section id="tab-ajuste" class="tab-panel" hidden>
     <figure style="margin-bottom: 20px;">
+      <figcaption>Leilão no WhatsApp — configurações</figcaption>
+      <form id="formConfiguracoes">
+        <div class="form-grid">
+          <div>
+            <label class="field-label">Chave PIX (enviada no privado de quem compra)</label>
+            <input class="field" name="pixKey" placeholder="ex: seuemail@exemplo.com, telefone ou chave aleatória" />
+          </div>
+        </div>
+        <div style="margin-bottom: 12px;">
+          <label class="field-label">Texto pedindo o endereço (enviado junto no privado)</label>
+          <textarea class="field" name="textoEndereco" rows="3" style="width: 100%; resize: vertical;"></textarea>
+        </div>
+        <button type="submit">Salvar configurações</button>
+        <span id="statusConfiguracoes" class="empty" style="margin-left: 10px;"></span>
+      </form>
+    </figure>
+
+    <figure style="margin-bottom: 20px;">
       <figcaption>Adicionar perfume</figcaption>
       <form id="formNovoPerfume">
         <div class="form-grid">
@@ -582,6 +600,18 @@
     await Promise.all([carregarStats(), carregarPerfumes()]);
   }
 
+  // Configurações do leilão (PIX + texto de endereço) carregam só uma vez ao abrir a
+  // página — não entram no carregarTudo() pra não apagar uma edição em andamento
+  // toda vez que alguém clica em "Atualizar agora".
+  async function carregarConfiguracoes() {
+    const res = await fetch("/api/configuracoes");
+    if (!res.ok) throw new Error("Falha ao carregar configurações");
+    const { configuracoes } = await res.json();
+    const form = document.getElementById("formConfiguracoes");
+    form.elements.pixKey.value = configuracoes.pixKey ?? "";
+    form.elements.textoEndereco.value = configuracoes.textoEndereco ?? "";
+  }
+
   document.getElementById("btnSync").addEventListener("click", async () => {
     const btn = document.getElementById("btnSync");
     btn.disabled = true;
@@ -641,8 +671,38 @@
     }
   });
 
+  document.getElementById("formConfiguracoes").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const form = e.target;
+    const status = document.getElementById("statusConfiguracoes");
+    const btn = form.querySelector("button[type=submit]");
+    btn.disabled = true;
+    status.textContent = "";
+    try {
+      const res = await fetch("/api/configuracoes", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          pixKey: form.elements.pixKey.value,
+          textoEndereco: form.elements.textoEndereco.value,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.erro || "Erro ao salvar");
+      status.textContent = "Salvo!";
+      setTimeout(() => { status.textContent = ""; }, 2500);
+    } catch (err) {
+      alert("Erro: " + err.message);
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
   carregarTudo().catch((err) => {
     document.getElementById("syncStatus").textContent = "Erro ao carregar: " + err.message;
+  });
+  carregarConfiguracoes().catch((err) => {
+    console.error("Falha ao carregar configurações:", err);
   });
 </script>
 </body>

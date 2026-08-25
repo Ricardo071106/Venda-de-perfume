@@ -23,3 +23,20 @@ export function parseComandoVenda(texto: string): ComandoVenda | null {
     valorTotal: parseNumeroBr(valorStr),
   };
 }
+
+// Lance no leilão do WhatsApp: só o número, com ou sem unidade — "5", "5ml", "5 ml",
+// "0,005l", "25l". Ancorado do início ao fim de propósito: uma resposta qualquer
+// (ex: "lindo esse perfume!") não pode ser confundida com um lance.
+const LANCE_REGEX = /^([\d]+(?:[.,]\d+)?)\s*(ml|l)?$/i;
+
+/** Interpreta uma resposta como lance de quantidade (em ml). Litros (sufixo "l")
+ * são convertidos pra ml automaticamente. Retorna null se o texto não for
+ * reconhecido como um lance (nesse caso a mensagem é ignorada, não rejeitada). */
+export function parseLanceQuantidade(texto: string): number | null {
+  const match = texto.trim().match(LANCE_REGEX);
+  if (!match) return null;
+  const [, numeroStr, unidade] = match;
+  const numero = parseNumeroBr(numeroStr);
+  if (!Number.isFinite(numero) || numero <= 0) return null;
+  return unidade?.toLowerCase() === "l" ? numero * 1000 : numero;
+}

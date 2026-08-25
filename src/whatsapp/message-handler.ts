@@ -1,29 +1,37 @@
 import type { WAMessage } from "@whiskeysockets/baileys";
 import { config } from "../config.js";
-import { parseComandoVenda } from "./commands.js";
+import { parseComandoVenda, parseLanceQuantidade } from "./commands.js";
 import { buscarPerfumePorMensagemRespondida, registrarVendaWhatsApp } from "../services/vendas.js";
+import { registrarLance } from "../services/leilao.js";
+import { enviarMensagemGrupo, enviarMensagemPrivada } from "./baileys-client.js";
 
 function extrairMensagem(msg: WAMessage): {
   remoteJid: string;
+  participantJid: string;
   senderPhone: string;
+  pushName: string;
   fromMe: boolean;
   texto: string | undefined;
   quotedMessageId: string | undefined;
 } {
   const remoteJid = msg.key.remoteJid ?? "";
   const fromMe = Boolean(msg.key.fromMe);
-  const participant = msg.key.participant ?? msg.key.remoteJid ?? "";
-  const senderPhone = participant.split("@")[0];
+  const participantJid = msg.key.participant ?? msg.key.remoteJid ?? "";
+  const senderPhone = participantJid.split("@")[0];
+  const pushName = msg.pushName ?? "";
 
   const texto = msg.message?.conversation ?? msg.message?.extendedTextMessage?.text ?? undefined;
   const quotedMessageId = msg.message?.extendedTextMessage?.contextInfo?.stanzaId ?? undefined;
 
-  return { remoteJid, senderPhone, fromMe, texto, quotedMessageId };
+  return { remoteJid, participantJid, senderPhone, pushName, fromMe, texto, quotedMessageId };
 }
 
-/** Processa cada mensagem recebida no WhatsApp: só age em reply a um perfume
- * postado, no grupo certo, vindo de um número autorizado, com o formato de
- * comando de venda reconhecido (ver whatsapp/commands.ts). */
+/** Processa cada mensagem recebida no WhatsApp. Dois comportamentos possíveis, sempre
+ * em reply a um perfume postado, no grupo certo:
+ * 1) Admin responde "vendi 5ml para Fulana por 50" -> registra venda manual/offline.
+ * 2) Qualquer participante responde só com a quantidade ("5", "5ml", "0,5l") -> lance
+ *    no leilão: debita estoque, confirma no grupo marcando a pessoa, e manda o valor +
+ *    PIX + pedido de endereço no privado dela. */
 export async function tratarMensagemRecebida(msg: WAMessage): Promise<void> {
   const dados = extrairMensagem(msg);
   if (!dados.remoteJid) return;
@@ -40,17 +48,57 @@ export async function tratarMensagemRecebida(msg: WAMessage): Promise<void> {
 
   if (dados.fromMe || !dados.texto || !dados.quotedMessageId) return;
   if (dados.remoteJid !== groupIdConfigurado) return;
-  if (!config.adminPhoneNumbers.includes(dados.senderPhone)) return;
 
-  const comando = parseComandoVenda(dados.texto);
-  if (!comando) return;
-
-  const perfume = await buscarPerfumePorMensagemRespondida(dados.quotedMessageId);
-  if (!perfume) {
-    console.warn("Comando de venda recebido, mas não achei o perfume da mensagem respondida.");
-    return;
+  // 1) Comando de admin (venda manual/offline) — frase completa, só de números autorizados.
+  if (config.adminPhoneNumbers.includes(dados.senderPhone)) {
+    const comando = parseComandoVenda(dados.texto);
+    if (comando) {
+      const perfume = await buscarPerfumePorMensagemRespondida(dados.quotedMessageId);
+      if (!perfume) {
+        console.warn("Comando de venda recebido, mas não achei o perfume da mensagem respondida.");
+        return;
+      }
+      await registrarVendaWhatsApp(perfume, comando);
+      console.log(`Venda registrada via WhatsApp: ${comando.mlVendido}ml de "${perfume.nome}" para ${comando.clienteNome}`);
+      return;
+    }
   }
 
-  await registrarVendaWhatsApp(perfume, comando);
-  console.log(`Venda registrada via WhatsApp: ${comando.mlVendido}ml de "${perfume.nome}" para ${comando.clienteNome}`);
+  // 2) Lance no leilão — aberto a qualquer participante do grupo.
+  const quantidadeMl = parseLanceQuantidade(dados.texto);
+  if (quantidadeMl === null) return; // não é um lance nem o comando de admin — ignora, é conversa normal
+
+  const perfume = await buscarPerfumePorMensagemRespondida(dados.quotedMessageId);
+  if (!perfume) return; // reply a outra mensagem qualquer, não a um post de perfume
+
+  const resultado = await registrarLance({
+    perfume: {
+      id: perfume.id,
+      nome: perfume.nome,
+      estoqueMl: Number(perfume.estoque_ml),
+      precoMl: Number(perfume.preco_ml),
+      estoqueInicialLeilao: perfume.estoque_inicial_leilao !== null ? Number(perfume.estoque_inicial_leilao) : null,
+    },
+    quantidadeMl,
+    compradorJid: dados.participantJid,
+    compradorTelefone: dados.senderPhone,
+    compradorNome: dados.pushName || dados.senderPhone,
+  });
+
+  await enviarMensagemGrupo(resultado.mensagemGrupo, [resultado.mentionJid]);
+  for (const marco of resultado.mensagensMarco) {
+    await enviarMensagemGrupo(marco);
+  }
+  if (resultado.mensagemEsgotado) {
+    await enviarMensagemGrupo(resultado.mensagemEsgotado);
+  }
+  if (resultado.mensagemPrivada) {
+    await enviarMensagemPrivada(dados.participantJid, resultado.mensagemPrivada);
+  }
+
+  console.log(
+    resultado.ok
+      ? `Lance registrado: ${quantidadeMl}ml de "${perfume.nome}" para ${dados.senderPhone}`
+      : `Lance recusado (estoque insuficiente): ${quantidadeMl}ml de "${perfume.nome}" pedido por ${dados.senderPhone}`
+  );
 }

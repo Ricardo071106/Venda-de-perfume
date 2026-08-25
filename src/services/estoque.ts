@@ -52,7 +52,9 @@ export async function registrarAjusteEstoque(
   return { estoqueMl: Number(row.estoque_ml), status: row.status };
 }
 
-/** Repõe estoque e volta o status pra 'ativo' quando sai de zero/negativo. */
+/** Repõe estoque e volta o status pra 'ativo' quando sai de zero/negativo. Também
+ * reinicia a base do leilão (estoque_inicial_leilao) pro novo total — uma reposição
+ * é um novo "lote" pra efeito de calcular as frações vendidas no WhatsApp. */
 export async function registrarEntradaEstoque(
   perfumeId: number,
   ml: number,
@@ -62,6 +64,7 @@ export async function registrarEntradaEstoque(
     `UPDATE perfumes SET
        estoque_ml = estoque_ml + $1,
        status = CASE WHEN estoque_ml + $1 > 0 THEN 'ativo' ELSE status END,
+       estoque_inicial_leilao = estoque_ml + $1,
        atualizado_em = now()
      WHERE id = $2
      RETURNING estoque_ml, status`,

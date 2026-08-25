@@ -7,13 +7,15 @@ interface PerfumePorMensagem {
   id: number;
   nome: string;
   estoque_ml: number;
+  preco_ml: number;
+  estoque_inicial_leilao: number | null;
 }
 
 export async function buscarPerfumePorMensagemRespondida(
   quotedMessageId: string
 ): Promise<PerfumePorMensagem | null> {
   const rows = await query<PerfumePorMensagem>(
-    `SELECT p.id, p.nome, p.estoque_ml
+    `SELECT p.id, p.nome, p.estoque_ml, p.preco_ml, p.estoque_inicial_leilao
      FROM posts_grupo pg
      JOIN perfumes p ON p.id = pg.perfume_id
      WHERE pg.whatsapp_message_id = $1
@@ -23,16 +25,24 @@ export async function buscarPerfumePorMensagemRespondida(
   return rows[0] ?? null;
 }
 
-async function getOrCreateCliente(nome: string): Promise<number | null> {
+/** Acha (por nome) ou cria um cliente. Se telefone for informado e o cliente
+ * já existir sem telefone salvo, atualiza — útil pra quem compra pelo grupo
+ * (a gente só sabe o telefone, o nome vem do perfil do WhatsApp). */
+export async function getOrCreateCliente(nome: string, telefone?: string): Promise<number | null> {
   if (!nome?.trim()) return null;
-  const existing = await query<{ id: number }>(
-    "SELECT id FROM clientes WHERE lower(nome) = lower($1) LIMIT 1",
+  const existing = await query<{ id: number; telefone: string | null }>(
+    "SELECT id, telefone FROM clientes WHERE lower(nome) = lower($1) LIMIT 1",
     [nome.trim()]
   );
-  if (existing.length > 0) return existing[0].id;
+  if (existing.length > 0) {
+    if (telefone && !existing[0].telefone) {
+      await query("UPDATE clientes SET telefone = $1 WHERE id = $2", [telefone, existing[0].id]);
+    }
+    return existing[0].id;
+  }
   const inserted = await query<{ id: number }>(
-    "INSERT INTO clientes (nome) VALUES ($1) RETURNING id",
-    [nome.trim()]
+    "INSERT INTO clientes (nome, telefone) VALUES ($1, $2) RETURNING id",
+    [nome.trim(), telefone ?? null]
   );
   return inserted[0].id;
 }

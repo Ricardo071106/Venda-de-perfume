@@ -97,6 +97,36 @@ export function montarLegendaPerfume(p: {
     `📦 *Disponível: ${p.estoqueMl}ml* (frasco de ${p.mlFrasco}ml)`,
     p.composicao ? `\n🌸 ${p.composicao}` : null,
     p.fragranticaUrl ? `\n🔗 Fragrantica:\n${p.fragranticaUrl}` : null,
+    "",
+    "✅ *Como comprar:*",
+    "Responda esta mensagem com a quantidade em ml que quer (ex: *5ml* ou *5*).",
+    "Vamos te chamar no privado com o valor e a chave PIX.",
   ];
   return linhas.filter((l) => l !== null).join("\n");
+}
+
+/** Manda o aviso de "vai abrir o leilão" antes do post com foto — mensagem de texto
+ * simples, sem imagem, só pra dar uma prévia de que a venda desse perfume vai começar. */
+export async function enviarAvisoLeilao(texto: string): Promise<void> {
+  if (!sock) {
+    throw new Error("WhatsApp ainda não conectado — tente novamente no próximo ciclo de sync.");
+  }
+  await sock.sendMessage(config.whatsapp.groupId, { text: texto });
+}
+
+/** Manda uma mensagem de texto no grupo, opcionalmente marcando (@) participantes —
+ * jids em `mentions` viram menção de verdade se o texto contiver "@<telefone>". */
+export async function enviarMensagemGrupo(texto: string, mentions: string[] = []): Promise<void> {
+  if (!sock) {
+    throw new Error("WhatsApp ainda não conectado.");
+  }
+  await sock.sendMessage(config.whatsapp.groupId, { text: texto, mentions });
+}
+
+/** Manda uma mensagem privada (DM) pro jid de um participante do grupo. */
+export async function enviarMensagemPrivada(jid: string, texto: string): Promise<void> {
+  if (!sock) {
+    throw new Error("WhatsApp ainda não conectado.");
+  }
+  await sock.sendMessage(jid, { text: texto });
 }

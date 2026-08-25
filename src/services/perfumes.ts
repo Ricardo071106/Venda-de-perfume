@@ -1,5 +1,5 @@
 import { query } from "../db.js";
-import { enviarFotoNoGrupo, montarLegendaPerfume } from "../whatsapp/baileys-client.js";
+import { enviarFotoNoGrupo, enviarAvisoLeilao, montarLegendaPerfume } from "../whatsapp/baileys-client.js";
 import { marcarPerfumePostado } from "../sheets/write-to-sheet.js";
 import { appendRow, readRange, updateCells, clearRange } from "../sheets/client.js";
 import { registrarAjusteEstoque } from "./estoque.js";
@@ -243,8 +243,22 @@ export async function ajustarEstoquePainel(
 }
 
 /** Posta (ou republica, se o conteúdo mudou desde a última vez) um perfume no
- * grupo do WhatsApp e registra o post no banco + na planilha. */
+ * grupo do WhatsApp e registra o post no banco + na planilha. Antes de um post
+ * NOVO (nunca postado ainda), manda um aviso de texto avisando que o leilão vai
+ * abrir — republicação por edição não repete o aviso, só a mensagem principal. */
 export async function postarPerfumeNoGrupo(perfume: PerfumeParaPostar): Promise<void> {
+  const [atual] = await query<{ postado_em: string | null }>(
+    "SELECT postado_em FROM perfumes WHERE id = $1",
+    [perfume.id]
+  );
+  const primeiroPost = !atual?.postado_em;
+
+  if (primeiroPost) {
+    await enviarAvisoLeilao(
+      `⚠️ *Atenção!* Vamos abrir a venda de *${perfume.nome}* agora! Fica de olho aqui no grupo 👀`
+    );
+  }
+
   const legenda = montarLegendaPerfume({
     nome: perfume.nome,
     marca: perfume.marca,

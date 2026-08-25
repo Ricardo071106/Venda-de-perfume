@@ -13,6 +13,7 @@ import {
   ajustarEstoquePainel,
 } from "../services/perfumes.js";
 import { registrarVendaPainel } from "../services/vendas.js";
+import { obterConfiguracoes, salvarConfiguracoes } from "../services/configuracoes.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -145,6 +146,29 @@ export function iniciarPainelAdmin(): void {
         clienteNome: typeof clienteNome === "string" ? clienteNome : undefined,
       });
       res.json(resultado);
+    } catch (err) {
+      res.status(400).json({ erro: err instanceof Error ? err.message : String(err) });
+    }
+  });
+
+  /** Configurações globais usadas no leilão do WhatsApp (chave PIX + texto de endereço). */
+  app.get("/api/configuracoes", async (_req, res) => {
+    try {
+      const configuracoes = await obterConfiguracoes();
+      res.json({ configuracoes });
+    } catch (err) {
+      res.status(500).json({ erro: err instanceof Error ? err.message : String(err) });
+    }
+  });
+
+  app.put("/api/configuracoes", async (req, res) => {
+    const { pixKey, textoEndereco } = req.body ?? {};
+    try {
+      const configuracoes = await salvarConfiguracoes({
+        pixKey: typeof pixKey === "string" ? pixKey : undefined,
+        textoEndereco: typeof textoEndereco === "string" ? textoEndereco : undefined,
+      });
+      res.json({ configuracoes });
     } catch (err) {
       res.status(400).json({ erro: err instanceof Error ? err.message : String(err) });
     }
