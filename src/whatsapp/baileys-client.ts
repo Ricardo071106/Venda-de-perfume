@@ -127,6 +127,7 @@ export function montarLegendaPerfume(p: {
     `Responda esta mensagem com a quantidade em ml que quer (múltiplos de 3, 5 ou 10 — ex: *5ml* ou *5*). Mínimo: ${mlMinimo}ml.`,
     p.apcDisponivel ? `Ou responda *APC* pra levar o frasco + caixa original (tudo que sobrar) ou *APC 50* pra pedir uma quantidade específica dentro do vidro.` : null,
     "Vamos te chamar no privado com o valor e a chave PIX.",
+    "Se mudar de ideia, responda *cancelar* pra desfazer seu(s) lance(s) nesse perfume.",
     p.assinaturaMarca ? `\n${p.assinaturaMarca}` : null,
   ];
   return linhas.filter((l) => l !== null).join("\n");

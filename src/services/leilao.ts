@@ -1,6 +1,7 @@
 import { query } from "../db.js";
-import { registrarSaidaEstoque } from "./estoque.js";
+import { registrarSaidaEstoque, registrarAjusteEstoque } from "./estoque.js";
 import { registrarVendaNaPlanilha } from "../sheets/write-to-sheet.js";
+import { readRange, clearRange } from "../sheets/client.js";
 import { getOrCreateCliente } from "./vendas.js";
 import { obterConfiguracoes } from "./configuracoes.js";
 import { notificarVendaCompleta } from "./notificacaoFinanceiro.js";
@@ -229,5 +230,73 @@ export async function registrarLance(input: LanceInput): Promise<ResultadoLance>
     mensagensMarco,
     mensagemEsgotado,
     mensagemPrivada,
+  };
+}
+
+export interface ResultadoCancelamento {
+  ok: boolean;
+  mensagemGrupo: string;
+}
+
+/** Cancela TODOS os lances (normais e/ou APC — não faz diferença, os dois só viram
+ * uma linha em `vendas` com o ml que foi tirado do estoque) que esse telefone fez
+ * nesse perfume, na rodada atual (desde o post mais recente). Some tudo e devolve
+ * ao estoque de uma vez — registrado como ajuste (dispara republicação automática
+ * se o perfume tinha esgotado e volta a ter estoque). Apaga as vendas do banco e da
+ * planilha, como se nunca tivessem acontecido. */
+export async function cancelarLances(params: {
+  perfumeId: number;
+  perfumeNome: string;
+  postadoEm: string | null;
+  compradorTelefone: string;
+}): Promise<ResultadoCancelamento> {
+  const { perfumeId, perfumeNome, postadoEm, compradorTelefone } = params;
+
+  const clientes = await query<{ id: number }>(
+    "SELECT id FROM clientes WHERE telefone = $1",
+    [compradorTelefone]
+  );
+  if (clientes.length === 0) {
+    return {
+      ok: false,
+      mensagemGrupo: `❌ @${compradorTelefone}, você não tem nenhum lance registrado em *${perfumeNome}* pra cancelar.`,
+    };
+  }
+  const clienteIds = clientes.map((c) => c.id);
+
+  const vendas = await query<{ id: number; ml_vendido: string }>(
+    postadoEm
+      ? `SELECT id, ml_vendido FROM vendas
+         WHERE perfume_id = $1 AND origem = 'whatsapp_bot' AND cliente_id = ANY($2) AND data >= $3`
+      : `SELECT id, ml_vendido FROM vendas
+         WHERE perfume_id = $1 AND origem = 'whatsapp_bot' AND cliente_id = ANY($2)`,
+    postadoEm ? [perfumeId, clienteIds, postadoEm] : [perfumeId, clienteIds]
+  );
+
+  if (vendas.length === 0) {
+    return {
+      ok: false,
+      mensagemGrupo: `❌ @${compradorTelefone}, você não tem nenhum lance registrado em *${perfumeNome}* pra cancelar.`,
+    };
+  }
+
+  const totalMl = vendas.reduce((acc, v) => acc + Number(v.ml_vendido), 0);
+  const idsVendas = vendas.map((v) => v.id);
+
+  await query("DELETE FROM vendas WHERE id = ANY($1)", [idsVendas]);
+  const resultado = await registrarAjusteEstoque(perfumeId, totalMl, "cancelamento de lance via whatsapp");
+
+  // Limpa as linhas correspondentes na aba Vendas (elas tinham o id da venda na
+  // coluna A) — como se a venda nunca tivesse sido lançada.
+  const vendasRows = await readRange("Vendas!A2:I");
+  for (let i = 0; i < vendasRows.length; i++) {
+    if (idsVendas.includes(Number(vendasRows[i][0]))) {
+      await clearRange(`Vendas!A${i + 2}:I${i + 2}`);
+    }
+  }
+
+  return {
+    ok: true,
+    mensagemGrupo: `❌ @${compradorTelefone} cancelou *${formatarMl(totalMl)}* de *${perfumeNome}*.\n\n*Estoque agora: ${formatarMl(resultado.estoqueMl)}.*`,
   };
 }

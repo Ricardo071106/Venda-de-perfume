@@ -1,8 +1,8 @@
 import type { WAMessage } from "@whiskeysockets/baileys";
 import { config } from "../config.js";
-import { parseComandoVenda, parseLanceQuantidade, parseComandoApc } from "./commands.js";
+import { parseComandoVenda, parseLanceQuantidade, parseComandoApc, ehComandoCancelar } from "./commands.js";
 import { buscarPerfumePorMensagemRespondida, registrarVendaWhatsApp } from "../services/vendas.js";
-import { registrarLance } from "../services/leilao.js";
+import { registrarLance, cancelarLances } from "../services/leilao.js";
 import { enviarMensagemGrupo, enviarMensagemPrivada, enviarFotoNoGrupo } from "./baileys-client.js";
 
 function extrairMensagem(msg: WAMessage): {
@@ -27,11 +27,13 @@ function extrairMensagem(msg: WAMessage): {
 }
 
 /** Processa cada mensagem recebida no WhatsApp. Sempre em reply a um perfume postado,
- * no grupo certo. Três comportamentos possíveis:
+ * no grupo certo. Quatro comportamentos possíveis:
  * 1) Admin responde "vendi 5ml para Fulana por 50" -> registra venda manual/offline.
- * 2) Qualquer participante responde com a quantidade ("5", "5ml", "0,5l") -> lance
+ * 2) Qualquer participante responde "cancelar" -> apaga todos os lances (normal e/ou
+ *    APC) que ELE MESMO fez nesse perfume na rodada atual, devolve o ml ao estoque.
+ * 3) Qualquer participante responde com a quantidade ("5", "5ml", "0,5l") -> lance
  *    normal (múltiplo de 3/5/10, respeitando o mínimo configurado).
- * 3) Qualquer participante responde "APC" (leva tudo que sobrar) ou "APC 50" (leva
+ * 4) Qualquer participante responde "APC" (leva tudo que sobrar) ou "APC 50" (leva
  *    50ml especificamente) -> arremata o frasco físico original + caixa.
  * Lance válido: debita estoque, confirma no grupo marcando a pessoa, e manda o valor +
  * PIX + pedido de endereço no privado dela. Se esgotar, fecha com foto + lista de quem comprou. */
@@ -67,7 +69,28 @@ export async function tratarMensagemRecebida(msg: WAMessage): Promise<void> {
     }
   }
 
-  // 2) Lance no leilão (quantidade normal ou APC) — aberto a qualquer participante.
+  // 2) Cancelar — some com todos os lances (normal e/ou APC) que essa pessoa fez
+  // nesse perfume, na rodada atual, e devolve o ml ao estoque.
+  if (ehComandoCancelar(dados.texto)) {
+    const perfumeCancelar = await buscarPerfumePorMensagemRespondida(dados.quotedMessageId);
+    if (!perfumeCancelar) return; // reply a outra mensagem qualquer, não a um post de perfume
+
+    const resultadoCancelamento = await cancelarLances({
+      perfumeId: perfumeCancelar.id,
+      perfumeNome: perfumeCancelar.nome,
+      postadoEm: perfumeCancelar.postado_em,
+      compradorTelefone: dados.senderPhone,
+    });
+    await enviarMensagemGrupo(resultadoCancelamento.mensagemGrupo, [dados.participantJid]);
+    console.log(
+      resultadoCancelamento.ok
+        ? `Cancelamento registrado de "${perfumeCancelar.nome}" para ${dados.senderPhone}`
+        : `Cancelamento recusado de "${perfumeCancelar.nome}" pedido por ${dados.senderPhone}: ${resultadoCancelamento.mensagemGrupo}`
+    );
+    return;
+  }
+
+  // 3) Lance no leilão (quantidade normal ou APC) — aberto a qualquer participante.
   const comandoApc = parseComandoApc(dados.texto);
   const quantidadeMl = comandoApc ? comandoApc.quantidadeMl : parseLanceQuantidade(dados.texto);
   if (!comandoApc && quantidadeMl === null) return; // não é lance nem comando de admin — ignora, é conversa normal

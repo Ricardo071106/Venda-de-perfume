@@ -62,3 +62,10 @@ export function parseComandoApc(texto: string): ComandoApc | null {
   const quantidadeMl = unidade?.toLowerCase() === "l" ? numero * 1000 : numero;
   return { quantidadeMl };
 }
+
+const CANCELAR_REGEX = /^cancelar$/i;
+
+/** true se o texto for um pedido pra cancelar os lances da pessoa nesse perfume. */
+export function ehComandoCancelar(texto: string): boolean {
+  return CANCELAR_REGEX.test(texto.trim());
+}
