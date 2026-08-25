@@ -76,16 +76,16 @@ pro GitHub, esse arquivo não vai junto.
    `https://docs.google.com/spreadsheets/d/AQUI_ESTA_O_ID/edit#gid=0`
 2. Copie só o trecho entre `/d/` e `/edit` — isso é o `GOOGLE_SPREADSHEET_ID`.
 
-### Passo 3: Criar as 4 abas com as colunas certas
+### Passo 3: Criar as 3 abas com as colunas certas
 Na parte de baixo da planilha, clique no `+` pra criar aba nova, e renomeie
-clicando duas vezes no nome. Precisa ter exatamente estas 4 abas (nomes
+clicando duas vezes no nome. Precisa ter exatamente estas 3 abas (nomes
 exatos, com maiúscula igual abaixo):
 
 **Aba "Perfumes"** — cole isso na célula A1 e aperte Enter (o Sheets separa
 automaticamente em colunas por causa dos tabs, mas se não separar, digite
-cada nome numa célula da linha 1, de A a O):
+cada nome numa célula da linha 1, de A a N):
 ```
-id	nome	marca	composição	foto_url	ml_frasco	preço_ml	custo_ml	fornecedor	estoque_ml	status	postar_no_grupo	postado	repor_ml	fragrantica_url
+id	nome	marca	composição	foto_url	ml_frasco	preço_ml	custo_ml	estoque_ml	status	postar_no_grupo	postado	repor_ml	fragrantica_url
 ```
 - Deixe as colunas `id` e `postado` em branco ao cadastrar um perfume novo —
   quem preenche é o bot, automaticamente.
@@ -94,13 +94,16 @@ id	nome	marca	composição	foto_url	ml_frasco	preço_ml	custo_ml	fornecedor	esto
   "Qualquer pessoa com o link" > copie o link e cole aqui.
 - `postar_no_grupo`: escreva `TRUE` quando quiser que aquele perfume seja
   postado no grupo do WhatsApp.
-- `estoque_ml`: **não edite direto**, é só um espelho do banco de dados —
-  o bot regrava esse número sozinho a cada sincronização.
-- `repor_ml`: pra dar entrada de estoque (comprou mais do fornecedor),
-  escreva aqui a quantidade que chegou. O bot soma no banco e limpa a
-  célula automaticamente no ciclo seguinte.
+- `estoque_ml` e `status`: **não edite direto**, são só espelho do banco de
+  dados — o bot regrava esses valores sozinho a cada sincronização.
+- `repor_ml`: pra dar entrada de estoque, escreva aqui a quantidade que
+  chegou. O bot soma no banco e limpa a célula automaticamente no ciclo
+  seguinte.
 - `fragrantica_url`: opcional — cole o link da página do perfume no
   Fragrantica (fragrantica.com.br) e ele aparece no post do grupo.
+- Editou nome, marca, composição, ml, preço, foto ou Fragrantica de um
+  perfume que já foi postado? No próximo "Atualizar agora" o bot manda uma
+  mensagem nova no grupo com a informação atualizada.
 
 **Aba "Vendas"** (linha 1, colunas A a I):
 ```
@@ -109,11 +112,6 @@ id	perfume	cliente	telefone	ml_vendido	valor_total	forma_pagamento	data	origem
 - Pra lançar uma venda manual: preencha `perfume` (o nome exatamente igual
   ao que está escrito na aba Perfumes), `cliente`, `ml_vendido`,
   `valor_total`. Deixe `id` e `origem` em branco.
-
-**Aba "Fornecedores"** (linha 1, colunas A a C):
-```
-nome	contato	observações
-```
 
 **Aba "Financeiro"**: essa você monta do seu jeito com fórmulas do Sheets
 puxando dados das outras abas (o bot não escreve nada nela). Um exemplo de
@@ -130,4 +128,4 @@ fórmula que soma receita por perfume, pra colocar numa célula:
       `~/Desktop/perfume-ml-bot/`
 - [ ] Planilha compartilhada com o e-mail da conta de serviço, como Editor
 - [ ] `GOOGLE_SPREADSHEET_ID` copiado da URL e colado no `.env`
-- [ ] As 4 abas criadas com os nomes e colunas certos
+- [ ] As 3 abas criadas com os nomes e colunas certos

@@ -5,7 +5,7 @@ Sincroniza Google Sheets ↔ Postgres ↔ grupo de WhatsApp (via Baileys) para v
 ## Arquitetura
 
 ```
-Google Sheets (Perfumes / Vendas / Fornecedores / Financeiro)
+Google Sheets (Perfumes / Vendas / Financeiro)
         ⇅ (sync ao subir + sob demanda, botão "Atualizar agora")
    Serviço Node/TS (este projeto) ── Painel administrativo (site)
         ⇅
@@ -25,29 +25,27 @@ Google Sheets (Perfumes / Vendas / Fornecedores / Financeiro)
 1. **Criar o grupo no WhatsApp** — feito manualmente no app por quem vai administrar.
 2. **Número de WhatsApp dedicado ao bot** — recomendado usar um chip separado (não o número pessoal). É o mesmo caminho usado no projeto Zelar.
 3. **Google Cloud**: criar um projeto, habilitar a "Google Sheets API", criar uma Service Account, baixar o JSON de credenciais e salvar como `service-account.json` na raiz do projeto (ou noutro caminho, ajustando `GOOGLE_SERVICE_ACCOUNT_JSON_PATH`). Compartilhar a planilha com o e-mail da service account (`...@...iam.gserviceaccount.com`) como Editor.
-4. **Planilha do Google Sheets**: criar com 4 abas — `Perfumes`, `Vendas`, `Fornecedores`, `Financeiro` — nos formatos descritos abaixo. Pegar o ID da planilha (na URL) para `GOOGLE_SPREADSHEET_ID`.
+4. **Planilha do Google Sheets**: criar com 3 abas — `Perfumes`, `Vendas`, `Financeiro` — nos formatos descritos abaixo. Pegar o ID da planilha (na URL) para `GOOGLE_SPREADSHEET_ID`.
 5. **Node 20+**: o projeto usa `.nvmrc` (rode `nvm use` antes de instalar/rodar).
 
 ## Estrutura da planilha
 
-### Aba "Perfumes" (colunas A–O, cabeçalho na linha 1)
-`id | nome | marca | composição | foto_url | ml_frasco | preço_ml | custo_ml | fornecedor | estoque_ml | status | postar_no_grupo | postado | repor_ml | fragrantica_url`
+### Aba "Perfumes" (colunas A–N, cabeçalho na linha 1)
+`id | nome | marca | composição | foto_url | ml_frasco | preço_ml | custo_ml | estoque_ml | status | postar_no_grupo | postado | repor_ml | fragrantica_url`
 
 - `id`, `postado` são preenchidos automaticamente pelo bot — deixar em branco ao cadastrar.
 - `foto_url` deve ser um link público (ex: link de compartilhamento do Google Drive com permissão "qualquer pessoa com o link").
 - `postar_no_grupo`: marcar `TRUE` quando quiser que o bot poste esse perfume no grupo.
-- `estoque_ml`: **espelho do banco, não edite direto** — o bot regrava esse valor a cada ciclo de sync com o que está no Postgres (que é sempre a fonte da verdade). Editar aqui manualmente não tem efeito: no próximo ciclo o bot sobrescreve de volta com o valor real do banco.
-- `repor_ml`: use esta coluna para adicionar estoque (reposição do fornecedor). Digite a quantidade que entrou; o bot soma no banco, registra o movimento e limpa a célula sozinho.
+- `estoque_ml` e `status`: **espelho do banco, não edite direto** — o bot regrava esses valores a cada ciclo de sync com o que está no Postgres (que é sempre a fonte da verdade). Editar aqui manualmente não tem efeito: no próximo ciclo o bot sobrescreve de volta com o valor real do banco.
+- `repor_ml`: use esta coluna para adicionar estoque (reposição). Digite a quantidade que entrou; o bot soma no banco, registra o movimento e limpa a célula sozinho.
 - `fragrantica_url`: opcional, link da página do perfume no Fragrantica — aparece no post do grupo (formato inspirado no grupo "Privé SPLITS", usado como referência visual).
+- Se um perfume já postado tiver algum desses campos alterado (nome, marca, composição, ml, preço, foto ou Fragrantica), o bot publica uma **mensagem nova** no grupo no próximo sync, refletindo a mudança.
 
 ### Aba "Vendas" (colunas A–I)
 `id | perfume | cliente | telefone | ml_vendido | valor_total | forma_pagamento | data | origem`
 
 - Lançamento manual: preencher `perfume` (nome exatamente como está na aba Perfumes), `cliente`, `ml_vendido`, `valor_total` — deixar `id` e `origem` em branco. O bot preenche o `id` depois de processar.
 - Linhas com `origem = whatsapp_bot` foram criadas automaticamente a partir de uma venda registrada no grupo.
-
-### Aba "Fornecedores"
-`nome | contato | observações`
 
 ### Aba "Financeiro"
 Aba de fórmulas nativas do Sheets (não escrita pelo bot), por exemplo:
