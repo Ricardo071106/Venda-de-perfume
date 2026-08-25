@@ -12,6 +12,7 @@ export interface PerfumeParaLance {
   estoqueInicialLeilao: number | null;
   postadoEm: string | null;
   apcDisponivel: boolean;
+  apcPreco: number | null; // preço fixo do APC (não é ml x preço/ml) — null = usa o preço/ml normal
 }
 
 export interface LanceInput {
@@ -91,9 +92,9 @@ function recusa(compradorJid: string, compradorTelefone: string, texto: string):
 
 /** Processa um lance feito por reply no grupo (qualquer participante, não só admin) —
  * quantidade normal (múltiplo de 3/5/10, respeitando o mínimo configurado) ou APC
- * (arremata o frasco físico original + caixa, no mesmo preço/ml normal — "APC 50"
- * entrega 50ml dentro do vidro original; "APC" sem número leva tudo que sobrar).
- * Se válido: debita, registra a
+ * (arremata o frasco físico original + caixa — "APC 50" entrega 50ml dentro do vidro
+ * original; "APC" sem número leva tudo que sobrar; preço é o apc_preco fixo cadastrado,
+ * ou o preço/ml normal se não tiver um configurado). Se válido: debita, registra a
  * venda (banco é a fonte da verdade, ecoa na planilha), calcula marcos de venda (1/4,
  * 1/3, 1/2, 1/1) com a lista de quem já comprou, e monta a mensagem privada com valor +
  * PIX + pedido de endereço. Se inválido: recusa sem mexer em nada. */
@@ -121,7 +122,11 @@ export async function registrarLance(input: LanceInput): Promise<ResultadoLance>
     } else {
       quantidadeReal = perfume.estoqueMl; // "APC" sem número: leva tudo que sobrar
     }
-    valorTotal = Math.round(quantidadeReal * perfume.precoMl * 100) / 100; // mesmo preço/ml normal
+    // Preço fixo configurado no cadastro do perfume tem prioridade; sem ele, cai no
+    // preço/ml normal (comportamento de antes de existir esse campo).
+    valorTotal = perfume.apcPreco && perfume.apcPreco > 0
+      ? perfume.apcPreco
+      : Math.round(quantidadeReal * perfume.precoMl * 100) / 100;
     motivoEstoque = "APC (frasco + caixa) via whatsapp";
   } else {
     const quantidadeMl = input.quantidadeMl ?? 0;

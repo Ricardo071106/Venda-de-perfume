@@ -84,6 +84,7 @@ export async function tratarMensagemRecebida(msg: WAMessage): Promise<void> {
       estoqueInicialLeilao: perfume.estoque_inicial_leilao !== null ? Number(perfume.estoque_inicial_leilao) : null,
       postadoEm: perfume.postado_em,
       apcDisponivel: perfume.apc_disponivel,
+      apcPreco: perfume.apc_preco !== null ? Number(perfume.apc_preco) : null,
     },
     tipo: comandoApc ? "apc" : "quantidade",
     quantidadeMl: quantidadeMl ?? undefined,
