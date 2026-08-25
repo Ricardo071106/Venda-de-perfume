@@ -1,7 +1,7 @@
 import { appendRow, updateCell } from "./client.js";
 
 export async function marcarPerfumePostado(sheetRow: number): Promise<void> {
-  await updateCell(`Perfumes!M${sheetRow}`, "TRUE");
+  await updateCell(`Perfumes!L${sheetRow}`, "TRUE");
 }
 
 export async function registrarVendaNaPlanilha(params: {
