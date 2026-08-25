@@ -3,6 +3,7 @@ import { registrarSaidaEstoque } from "./estoque.js";
 import { registrarVendaNaPlanilha } from "../sheets/write-to-sheet.js";
 import { getOrCreateCliente } from "./vendas.js";
 import { obterConfiguracoes } from "./configuracoes.js";
+import { notificarVendaCompleta } from "./notificacaoFinanceiro.js";
 
 export interface PerfumeParaLance {
   id: number;
@@ -154,6 +155,10 @@ export async function registrarLance(input: LanceInput): Promise<ResultadoLance>
 
   const estoqueAntes = perfume.estoqueMl;
   const { estoqueMl: estoqueDepois } = await registrarSaidaEstoque(perfume.id, quantidadeReal, motivoEstoque);
+
+  if (estoqueAntes > 0 && estoqueDepois <= 0) {
+    await notificarVendaCompleta(perfume.id); // já engole os próprios erros, nunca derruba o lance
+  }
 
   // Baseline do leilão: se ainda não existir (perfume antigo, ou primeiro lance depois
   // de um post novo), usa o estoque de antes desse lance e grava pra próxima vez.

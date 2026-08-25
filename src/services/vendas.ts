@@ -1,6 +1,7 @@
 import { query } from "../db.js";
 import { registrarVendaNaPlanilha } from "../sheets/write-to-sheet.js";
 import { registrarSaidaEstoque } from "./estoque.js";
+import { notificarVendaCompleta } from "./notificacaoFinanceiro.js";
 import type { ComandoVenda } from "../whatsapp/commands.js";
 
 interface PerfumePorMensagem {
@@ -65,7 +66,11 @@ export async function registrarVendaWhatsApp(
     [perfume.id, clienteId, comando.mlVendido, comando.valorTotal]
   );
 
-  await registrarSaidaEstoque(perfume.id, comando.mlVendido, "venda via whatsapp");
+  const estoqueAntes = Number(perfume.estoque_ml);
+  const { estoqueMl: estoqueDepois } = await registrarSaidaEstoque(perfume.id, comando.mlVendido, "venda via whatsapp");
+  if (estoqueAntes > 0 && estoqueDepois <= 0) {
+    await notificarVendaCompleta(perfume.id);
+  }
 
   await registrarVendaNaPlanilha({
     vendaId: inserted[0].id,
@@ -115,7 +120,11 @@ export async function registrarVendaPainel(params: {
     [perfume.id, clienteId, params.mlVendido, valorTotal]
   );
 
+  const estoqueAntes = Number(perfume.estoque_ml);
   const { estoqueMl, status } = await registrarSaidaEstoque(perfume.id, params.mlVendido, "venda via painel");
+  if (estoqueAntes > 0 && estoqueMl <= 0) {
+    await notificarVendaCompleta(perfume.id);
+  }
 
   await registrarVendaNaPlanilha({
     vendaId: inserted[0].id,

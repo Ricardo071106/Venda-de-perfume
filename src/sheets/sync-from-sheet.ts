@@ -1,6 +1,7 @@
 import { readRange, updateCell } from "./client.js";
 import { query } from "../db.js";
 import { registrarEntradaEstoque, registrarSaidaEstoque } from "../services/estoque.js";
+import { notificarVendaCompleta } from "../services/notificacaoFinanceiro.js";
 
 // Aba "Perfumes": A id | B nome | C marca | D composicao | E foto_url | F ml_frasco
 //                 G preco_ml | H custo_ml | I estoque_ml | J status
@@ -216,7 +217,11 @@ export async function syncVendasManualFromSheet(): Promise<void> {
       [perfume.id, clienteId, mlVendido, valorTotal, formaPagamento ?? null, sheetRow]
     );
 
-    await registrarSaidaEstoque(perfume.id, mlVendido, "venda manual planilha");
+    const estoqueAntes = Number(perfume.estoque_ml);
+    const { estoqueMl: estoqueDepois } = await registrarSaidaEstoque(perfume.id, mlVendido, "venda manual planilha");
+    if (estoqueAntes > 0 && estoqueDepois <= 0) {
+      await notificarVendaCompleta(perfume.id);
+    }
 
     await updateCell(`Vendas!A${sheetRow}`, inserted[0].id);
   }
