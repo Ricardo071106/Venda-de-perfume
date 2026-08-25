@@ -4,7 +4,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { config } from "../config.js";
 import { obterEstatisticas } from "../services/stats.js";
-import { rodarSync, obterUltimoResultadoSync } from "../services/sync.js";
+import { rodarSync, obterUltimoResultadoSync, sincronizarDados } from "../services/sync.js";
 import {
   listarPerfumes,
   criarPerfume,
@@ -63,6 +63,12 @@ export function iniciarPainelAdmin(): void {
 
   app.post("/api/sync", async (_req, res) => {
     const resultado = await rodarSync();
+    res.json(resultado);
+  });
+
+  /** Só alinha planilha <-> banco <-> painel — não posta nada no grupo do WhatsApp. */
+  app.post("/api/sync-dados", async (_req, res) => {
+    const resultado = await sincronizarDados();
     res.json(resultado);
   });
 

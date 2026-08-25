@@ -138,7 +138,10 @@
       <h1>Perfume ML Bot — Painel</h1>
       <div class="sync-status" id="syncStatus">Carregando…</div>
     </div>
-    <button id="btnSync">Atualizar agora</button>
+    <div style="display:flex; gap:8px;">
+      <button id="btnSyncDados" class="btn-secondary" title="Alinha planilha, banco e painel — não posta nada no grupo">Sincronizar dados</button>
+      <button id="btnSync">Atualizar agora</button>
+    </div>
   </header>
 
   <nav class="tabs">
@@ -650,6 +653,23 @@
     } finally {
       btn.disabled = false;
       btn.textContent = "Atualizar agora";
+    }
+  });
+
+  document.getElementById("btnSyncDados").addEventListener("click", async () => {
+    const btn = document.getElementById("btnSyncDados");
+    btn.disabled = true;
+    btn.textContent = "Sincronizando…";
+    try {
+      const res = await fetch("/api/sync-dados", { method: "POST" });
+      const data = await res.json();
+      if (!data.ok) throw new Error(data.erro || "Falha ao sincronizar dados");
+      await carregarTudo();
+    } catch (err) {
+      alert("Erro ao sincronizar dados: " + err.message);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = "Sincronizar dados";
     }
   });
 
