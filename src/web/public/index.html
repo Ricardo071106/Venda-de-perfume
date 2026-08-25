@@ -191,6 +191,14 @@
             <label class="field-label">Chave PIX (enviada no privado de quem compra)</label>
             <input class="field" name="pixKey" placeholder="ex: seuemail@exemplo.com, telefone ou chave aleatória" />
           </div>
+          <div>
+            <label class="field-label">Pedido mínimo (ml)</label>
+            <input class="field" name="mlMinimo" type="number" step="1" min="1" />
+          </div>
+          <div>
+            <label class="field-label">Assinatura no post (opcional)</label>
+            <input class="field" name="assinaturaMarca" placeholder="ex: Sua Marca • Perfumaria" />
+          </div>
         </div>
         <div style="margin-bottom: 12px;">
           <label class="field-label">Texto pedindo o endereço (enviado junto no privado)</label>
@@ -214,6 +222,8 @@
           <div><label class="field-label">Composição</label><input class="field" name="composicao" /></div>
           <div><label class="field-label">Foto (URL)</label><input class="field" name="fotoUrl" type="url" /></div>
           <div><label class="field-label">Fragrantica (URL)</label><input class="field" name="fragranticaUrl" type="url" /></div>
+          <div><label class="field-label">APC — ml do frasco (opcional)</label><input class="field" name="apcMl" type="number" step="0.1" placeholder="ex: 50" /></div>
+          <div><label class="field-label">APC — preço total (R$)</label><input class="field" name="apcPreco" type="number" step="0.01" placeholder="ex: 2000" /></div>
         </div>
         <label style="display:flex; align-items:center; gap:6px; font-size:13px; margin-bottom:12px;">
           <input type="checkbox" name="postarNoGrupo" />
@@ -245,7 +255,8 @@
             <tr>
               <th>Nome</th><th>Marca</th><th>Composição</th>
               <th class="num">ml frasco</th><th class="num">Preço/ml</th><th class="num">Custo/ml</th>
-              <th>Foto</th><th>Fragrantica</th><th class="num">Estoque</th><th>Status</th><th>Ações</th>
+              <th>Foto</th><th>Fragrantica</th><th class="num">APC ml</th><th class="num">APC preço</th>
+              <th class="num">Estoque</th><th>Status</th><th>Ações</th>
             </tr>
           </thead>
           <tbody></tbody>
@@ -453,7 +464,7 @@
   function renderTodos(perfumes) {
     const tbody = document.querySelector("#tabelaTodos tbody");
     if (!perfumes.length) {
-      tbody.innerHTML = '<tr><td colspan="11" class="empty">Nenhum perfume cadastrado ainda.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="13" class="empty">Nenhum perfume cadastrado ainda.</td></tr>';
       return;
     }
     tbody.innerHTML = perfumes.map((p) => {
@@ -470,6 +481,8 @@
             <td class="num">${p.custoMl != null ? formatarMoeda(p.custoMl) : "—"}</td>
             <td>${p.fotoUrl ? `<a href="${p.fotoUrl}" target="_blank" rel="noopener">link</a>` : "—"}</td>
             <td>${p.fragranticaUrl ? `<a href="${p.fragranticaUrl}" target="_blank" rel="noopener">link</a>` : "—"}</td>
+            <td class="num">${p.apcMl != null ? formatarMl(p.apcMl) : "—"}</td>
+            <td class="num">${p.apcPreco != null ? formatarMoeda(p.apcPreco) : "—"}</td>
             <td class="num">${formatarMl(p.estoqueMl)}</td>
             <td>${statusHtml}</td>
             <td class="row-actions"><button class="btn-secondary btn-sm btn-editar" data-id="${p.id}">Editar</button></td>
@@ -486,6 +499,8 @@
           <td><input class="field campo" data-campo="custoMl" type="number" step="0.01" value="${p.custoMl ?? ""}" /></td>
           <td><input class="field campo" data-campo="fotoUrl" type="url" value="${escapeAttr(p.fotoUrl ?? "")}" /></td>
           <td><input class="field campo" data-campo="fragranticaUrl" type="url" value="${escapeAttr(p.fragranticaUrl ?? "")}" /></td>
+          <td><input class="field campo" data-campo="apcMl" type="number" step="0.1" value="${p.apcMl ?? ""}" placeholder="ml" /></td>
+          <td><input class="field campo" data-campo="apcPreco" type="number" step="0.01" value="${p.apcPreco ?? ""}" placeholder="R$" /></td>
           <td class="num">${formatarMl(p.estoqueMl)}</td>
           <td>${statusHtml}</td>
           <td class="row-actions">
@@ -516,7 +531,9 @@
         row.querySelectorAll(".campo").forEach((input) => {
           const nomeCampo = input.dataset.campo;
           if (nomeCampo === "mlFrasco" || nomeCampo === "precoMl") campos[nomeCampo] = Number(input.value);
-          else if (nomeCampo === "custoMl") campos[nomeCampo] = input.value === "" ? null : Number(input.value);
+          else if (nomeCampo === "custoMl" || nomeCampo === "apcMl" || nomeCampo === "apcPreco") {
+            campos[nomeCampo] = input.value === "" ? null : Number(input.value);
+          }
           else campos[nomeCampo] = input.value;
         });
         btn.disabled = true;
@@ -610,6 +627,8 @@
     const form = document.getElementById("formConfiguracoes");
     form.elements.pixKey.value = configuracoes.pixKey ?? "";
     form.elements.textoEndereco.value = configuracoes.textoEndereco ?? "";
+    form.elements.mlMinimo.value = configuracoes.mlMinimo ?? 3;
+    form.elements.assinaturaMarca.value = configuracoes.assinaturaMarca ?? "";
   }
 
   document.getElementById("btnSync").addEventListener("click", async () => {
@@ -650,6 +669,8 @@
       composicao: dados.composicao || undefined,
       fotoUrl: dados.fotoUrl || undefined,
       fragranticaUrl: dados.fragranticaUrl || undefined,
+      apcMl: dados.apcMl ? Number(dados.apcMl) : undefined,
+      apcPreco: dados.apcPreco ? Number(dados.apcPreco) : undefined,
       postarNoGrupo: dados.postarNoGrupo === "on",
     };
     const btn = form.querySelector("button[type=submit]");
@@ -685,6 +706,8 @@
         body: JSON.stringify({
           pixKey: form.elements.pixKey.value,
           textoEndereco: form.elements.textoEndereco.value,
+          mlMinimo: form.elements.mlMinimo.value,
+          assinaturaMarca: form.elements.assinaturaMarca.value,
         }),
       });
       const data = await res.json();

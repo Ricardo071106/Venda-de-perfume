@@ -1,9 +1,9 @@
 import type { WAMessage } from "@whiskeysockets/baileys";
 import { config } from "../config.js";
-import { parseComandoVenda, parseLanceQuantidade } from "./commands.js";
+import { parseComandoVenda, parseLanceQuantidade, ehComandoApc } from "./commands.js";
 import { buscarPerfumePorMensagemRespondida, registrarVendaWhatsApp } from "../services/vendas.js";
 import { registrarLance } from "../services/leilao.js";
-import { enviarMensagemGrupo, enviarMensagemPrivada } from "./baileys-client.js";
+import { enviarMensagemGrupo, enviarMensagemPrivada, enviarFotoNoGrupo } from "./baileys-client.js";
 
 function extrairMensagem(msg: WAMessage): {
   remoteJid: string;
@@ -26,12 +26,15 @@ function extrairMensagem(msg: WAMessage): {
   return { remoteJid, participantJid, senderPhone, pushName, fromMe, texto, quotedMessageId };
 }
 
-/** Processa cada mensagem recebida no WhatsApp. Dois comportamentos possíveis, sempre
- * em reply a um perfume postado, no grupo certo:
+/** Processa cada mensagem recebida no WhatsApp. Sempre em reply a um perfume postado,
+ * no grupo certo. Três comportamentos possíveis:
  * 1) Admin responde "vendi 5ml para Fulana por 50" -> registra venda manual/offline.
- * 2) Qualquer participante responde só com a quantidade ("5", "5ml", "0,5l") -> lance
- *    no leilão: debita estoque, confirma no grupo marcando a pessoa, e manda o valor +
- *    PIX + pedido de endereço no privado dela. */
+ * 2) Qualquer participante responde com a quantidade ("5", "5ml", "0,5l") -> lance
+ *    normal (múltiplo de 3/5/10, respeitando o mínimo configurado).
+ * 3) Qualquer participante responde "APC" (ou "APC 10ml" etc) -> arremata o frasco
+ *    físico original + caixa, sempre pelo estoque restante no momento.
+ * Lance válido: debita estoque, confirma no grupo marcando a pessoa, e manda o valor +
+ * PIX + pedido de endereço no privado dela. Se esgotar, fecha com foto + lista de quem comprou. */
 export async function tratarMensagemRecebida(msg: WAMessage): Promise<void> {
   const dados = extrairMensagem(msg);
   if (!dados.remoteJid) return;
@@ -64,9 +67,10 @@ export async function tratarMensagemRecebida(msg: WAMessage): Promise<void> {
     }
   }
 
-  // 2) Lance no leilão — aberto a qualquer participante do grupo.
-  const quantidadeMl = parseLanceQuantidade(dados.texto);
-  if (quantidadeMl === null) return; // não é um lance nem o comando de admin — ignora, é conversa normal
+  // 2) Lance no leilão (quantidade normal ou APC) — aberto a qualquer participante.
+  const ehApc = ehComandoApc(dados.texto);
+  const quantidadeMl = ehApc ? null : parseLanceQuantidade(dados.texto);
+  if (!ehApc && quantidadeMl === null) return; // não é lance nem comando de admin — ignora, é conversa normal
 
   const perfume = await buscarPerfumePorMensagemRespondida(dados.quotedMessageId);
   if (!perfume) return; // reply a outra mensagem qualquer, não a um post de perfume
@@ -78,8 +82,12 @@ export async function tratarMensagemRecebida(msg: WAMessage): Promise<void> {
       estoqueMl: Number(perfume.estoque_ml),
       precoMl: Number(perfume.preco_ml),
       estoqueInicialLeilao: perfume.estoque_inicial_leilao !== null ? Number(perfume.estoque_inicial_leilao) : null,
+      postadoEm: perfume.postado_em,
+      apcMl: perfume.apc_ml !== null ? Number(perfume.apc_ml) : null,
+      apcPreco: perfume.apc_preco !== null ? Number(perfume.apc_preco) : null,
     },
-    quantidadeMl,
+    tipo: ehApc ? "apc" : "quantidade",
+    quantidadeMl: quantidadeMl ?? undefined,
     compradorJid: dados.participantJid,
     compradorTelefone: dados.senderPhone,
     compradorNome: dados.pushName || dados.senderPhone,
@@ -90,7 +98,12 @@ export async function tratarMensagemRecebida(msg: WAMessage): Promise<void> {
     await enviarMensagemGrupo(marco);
   }
   if (resultado.mensagemEsgotado) {
-    await enviarMensagemGrupo(resultado.mensagemEsgotado);
+    // Fecha com a mesma foto do anúncio original, se tiver — fica mais bonito que só texto.
+    if (perfume.foto_url) {
+      await enviarFotoNoGrupo({ fotoUrl: perfume.foto_url, legenda: resultado.mensagemEsgotado });
+    } else {
+      await enviarMensagemGrupo(resultado.mensagemEsgotado);
+    }
   }
   if (resultado.mensagemPrivada) {
     await enviarMensagemPrivada(dados.participantJid, resultado.mensagemPrivada);
@@ -98,7 +111,7 @@ export async function tratarMensagemRecebida(msg: WAMessage): Promise<void> {
 
   console.log(
     resultado.ok
-      ? `Lance registrado: ${quantidadeMl}ml de "${perfume.nome}" para ${dados.senderPhone}`
-      : `Lance recusado (estoque insuficiente): ${quantidadeMl}ml de "${perfume.nome}" pedido por ${dados.senderPhone}`
+      ? `Lance registrado (${ehApc ? "APC" : `${quantidadeMl}ml`}) de "${perfume.nome}" para ${dados.senderPhone}`
+      : `Lance recusado de "${perfume.nome}" pedido por ${dados.senderPhone}: ${resultado.mensagemGrupo}`
   );
 }

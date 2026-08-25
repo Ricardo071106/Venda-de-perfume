@@ -162,11 +162,13 @@ export function iniciarPainelAdmin(): void {
   });
 
   app.put("/api/configuracoes", async (req, res) => {
-    const { pixKey, textoEndereco } = req.body ?? {};
+    const { pixKey, textoEndereco, mlMinimo, assinaturaMarca } = req.body ?? {};
     try {
       const configuracoes = await salvarConfiguracoes({
         pixKey: typeof pixKey === "string" ? pixKey : undefined,
         textoEndereco: typeof textoEndereco === "string" ? textoEndereco : undefined,
+        mlMinimo: Number.isFinite(Number(mlMinimo)) && mlMinimo !== "" && mlMinimo !== undefined ? Number(mlMinimo) : undefined,
+        assinaturaMarca: typeof assinaturaMarca === "string" ? assinaturaMarca : undefined,
       });
       res.json({ configuracoes });
     } catch (err) {

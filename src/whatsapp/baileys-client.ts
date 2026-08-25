@@ -81,6 +81,14 @@ export async function enviarFotoNoGrupo(params: {
   return { messageId };
 }
 
+function formatarPreco(v: number): string {
+  return `R$${v.toFixed(2).replace(".", ",")}`;
+}
+
+// Quantidades usadas pra montar a tabela de preço pronta na legenda — mesmos
+// valores aceitos como lance (múltiplos de 3, 5 ou 10).
+const QUANTIDADES_TABELA = [3, 5, 10];
+
 export function montarLegendaPerfume(p: {
   nome: string;
   marca: string;
@@ -89,29 +97,56 @@ export function montarLegendaPerfume(p: {
   estoqueMl: number;
   precoMl: number;
   fragranticaUrl?: string;
+  apcMl?: number | null;
+  apcPreco?: number | null;
+  mlMinimo?: number;
+  assinaturaMarca?: string;
 }): string {
+  const mlMinimo = p.mlMinimo ?? 3;
+  const tabelaPreco = QUANTIDADES_TABELA.filter((q) => q >= mlMinimo && q <= p.estoqueMl)
+    .map((q) => `${q}ml: ${formatarPreco(q * p.precoMl)}`)
+    .join("\n");
+
   const linhas = [
     `*${p.nome}*${p.marca ? ` (${p.marca})` : ""}`,
     "",
-    `💰 *R$${p.precoMl.toFixed(2)}/ml*`,
+    `💰 *${formatarPreco(p.precoMl)}/ml*`,
     `📦 *Disponível: ${p.estoqueMl}ml* (frasco de ${p.mlFrasco}ml)`,
     p.composicao ? `\n🌸 ${p.composicao}` : null,
     p.fragranticaUrl ? `\n🔗 Fragrantica:\n${p.fragranticaUrl}` : null,
+    tabelaPreco ? `\n-----------------------------\n${tabelaPreco}` : null,
+    p.apcMl && p.apcPreco
+      ? `📦🚀 *APC (frasco + caixa original) + ${p.apcMl}ml: ${formatarPreco(p.apcPreco)}*`
+      : null,
+    "-----------------------------",
     "",
     "✅ *Como comprar:*",
-    "Responda esta mensagem com a quantidade em ml que quer (ex: *5ml* ou *5*).",
+    `Responda esta mensagem com a quantidade em ml que quer (múltiplos de 3, 5 ou 10 — ex: *5ml* ou *5*). Mínimo: ${mlMinimo}ml.`,
+    p.apcMl ? `Ou responda *APC* pra levar o frasco + caixa original.` : null,
     "Vamos te chamar no privado com o valor e a chave PIX.",
+    p.assinaturaMarca ? `\n${p.assinaturaMarca}` : null,
   ];
   return linhas.filter((l) => l !== null).join("\n");
 }
 
 /** Manda o aviso de "vai abrir o leilão" antes do post com foto — mensagem de texto
- * simples, sem imagem, só pra dar uma prévia de que a venda desse perfume vai começar. */
-export async function enviarAvisoLeilao(texto: string): Promise<void> {
+ * simples, sem imagem, só pra dar uma prévia de que a venda desse perfume vai começar.
+ * mencionarTodos: se true, notifica todo mundo do grupo (equivalente ao "@all" nativo). */
+export async function enviarAvisoLeilao(texto: string, mencionarTodos = false): Promise<void> {
   if (!sock) {
     throw new Error("WhatsApp ainda não conectado — tente novamente no próximo ciclo de sync.");
   }
-  await sock.sendMessage(config.whatsapp.groupId, { text: texto });
+  let mentions: string[] = [];
+  if (mencionarTodos) {
+    try {
+      const metadata = await sock.groupMetadata(config.whatsapp.groupId);
+      mentions = metadata.participants.map((p) => p.id);
+    } catch (err) {
+      console.warn("Não consegui buscar os participantes do grupo pra marcar @todos:", err);
+    }
+  }
+  const textoFinal = mencionarTodos ? `${texto}\n\n@all` : texto;
+  await sock.sendMessage(config.whatsapp.groupId, { text: textoFinal, mentions });
 }
 
 /** Manda uma mensagem de texto no grupo, opcionalmente marcando (@) participantes —

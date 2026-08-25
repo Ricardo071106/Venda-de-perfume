@@ -40,3 +40,13 @@ export function parseLanceQuantidade(texto: string): number | null {
   if (!Number.isFinite(numero) || numero <= 0) return null;
   return unidade?.toLowerCase() === "l" ? numero * 1000 : numero;
 }
+
+// "APC", "apc 10ml", "APC 50 ml" etc — o número (se vier) é só confirmação visual de
+// quem está pedindo; o que vale de verdade é sempre o estoque restante no momento
+// (é o frasco físico original, não dá pra entregar "parte" dele como decant).
+const APC_REGEX = /^apc(?:\s+[\d.,]+\s*(?:ml|l)?)?$/i;
+
+/** true se o texto for um pedido de APC (arrematar o frasco original + caixa). */
+export function ehComandoApc(texto: string): boolean {
+  return APC_REGEX.test(texto.trim());
+}

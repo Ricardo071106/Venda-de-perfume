@@ -17,6 +17,8 @@ CREATE TABLE IF NOT EXISTS perfumes (
     postado_em TIMESTAMPTZ, -- quando foi postado no grupo (NULL = ainda não postado)
     ultimo_conteudo_postado TEXT, -- retrato (nome/marca/composição/ml/preço/foto/fragrantica) da última vez que foi postado — usado pra saber se mudou algo e vale republicar
     estoque_inicial_leilao NUMERIC(10, 2), -- estoque no momento do post/reposição mais recente — base pra calcular as frações vendidas (1/4, 1/3, 1/2, 1/1) no leilão do WhatsApp
+    apc_ml NUMERIC(10, 2), -- tamanho do frasco físico oferecido como "APC" (frasco + caixa originais) — null = sem opção de APC nesse perfume
+    apc_preco NUMERIC(10, 2), -- preço total do APC (frasco cheio); se alguém arrematar com o frasco parcialmente vendido, cobra proporcional (apc_preco/apc_ml * estoque restante)
     criado_em TIMESTAMPTZ NOT NULL DEFAULT now(),
     atualizado_em TIMESTAMPTZ NOT NULL DEFAULT now()
 );
@@ -76,6 +78,8 @@ DROP TABLE IF EXISTS fornecedores;
 
 -- Idempotente: garante a coluna em bancos que já rodaram uma versão anterior deste schema.
 ALTER TABLE perfumes ADD COLUMN IF NOT EXISTS estoque_inicial_leilao NUMERIC(10, 2);
+ALTER TABLE perfumes ADD COLUMN IF NOT EXISTS apc_ml NUMERIC(10, 2);
+ALTER TABLE perfumes ADD COLUMN IF NOT EXISTS apc_preco NUMERIC(10, 2);
 
 CREATE INDEX IF NOT EXISTS idx_vendas_perfume ON vendas(perfume_id);
 CREATE INDEX IF NOT EXISTS idx_estoque_perfume ON estoque_movimentos(perfume_id);
