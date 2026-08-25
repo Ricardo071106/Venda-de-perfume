@@ -17,7 +17,7 @@ export interface PerfumeParaLance {
 export interface LanceInput {
   perfume: PerfumeParaLance;
   tipo: "quantidade" | "apc";
-  quantidadeMl?: number; // obrigatório quando tipo === "quantidade"; ignorado em "apc"
+  quantidadeMl?: number; // obrigatório quando tipo === "quantidade"; opcional em "apc" (ausente = leva tudo que sobrar)
   compradorJid: string;
   compradorTelefone: string;
   compradorNome: string;
@@ -91,8 +91,9 @@ function recusa(compradorJid: string, compradorTelefone: string, texto: string):
 
 /** Processa um lance feito por reply no grupo (qualquer participante, não só admin) —
  * quantidade normal (múltiplo de 3/5/10, respeitando o mínimo configurado) ou APC
- * (arremata o frasco físico original + caixa, sempre pelo estoque restante no momento,
- * no mesmo preço/ml normal). Se válido: debita, registra a
+ * (arremata o frasco físico original + caixa, no mesmo preço/ml normal — "APC 50"
+ * entrega 50ml dentro do vidro original; "APC" sem número leva tudo que sobrar).
+ * Se válido: debita, registra a
  * venda (banco é a fonte da verdade, ecoa na planilha), calcula marcos de venda (1/4,
  * 1/3, 1/2, 1/1) com a lista de quem já comprou, e monta a mensagem privada com valor +
  * PIX + pedido de endereço. Se inválido: recusa sem mexer em nada. */
@@ -111,7 +112,15 @@ export async function registrarLance(input: LanceInput): Promise<ResultadoLance>
     if (perfume.estoqueMl <= 0) {
       return recusa(compradorJid, compradorTelefone, `*${perfume.nome}* já esgotou, não dá mais pra arrematar o APC.`);
     }
-    quantidadeReal = perfume.estoqueMl; // o APC leva o que sobrar no frasco físico, não uma parte
+    if (input.quantidadeMl !== undefined) {
+      // "APC 50" — quantidade específica pra entregar no frasco físico + caixa.
+      if (input.quantidadeMl > perfume.estoqueMl) {
+        return recusa(compradorJid, compradorTelefone, `só restam *${formatarMl(perfume.estoqueMl)}* de *${perfume.nome}* — peça um APC com quantidade menor.`);
+      }
+      quantidadeReal = input.quantidadeMl;
+    } else {
+      quantidadeReal = perfume.estoqueMl; // "APC" sem número: leva tudo que sobrar
+    }
     valorTotal = Math.round(quantidadeReal * perfume.precoMl * 100) / 100; // mesmo preço/ml normal
     motivoEstoque = "APC (frasco + caixa) via whatsapp";
   } else {

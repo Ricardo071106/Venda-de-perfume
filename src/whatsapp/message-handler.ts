@@ -1,6 +1,6 @@
 import type { WAMessage } from "@whiskeysockets/baileys";
 import { config } from "../config.js";
-import { parseComandoVenda, parseLanceQuantidade, ehComandoApc } from "./commands.js";
+import { parseComandoVenda, parseLanceQuantidade, parseComandoApc } from "./commands.js";
 import { buscarPerfumePorMensagemRespondida, registrarVendaWhatsApp } from "../services/vendas.js";
 import { registrarLance } from "../services/leilao.js";
 import { enviarMensagemGrupo, enviarMensagemPrivada, enviarFotoNoGrupo } from "./baileys-client.js";
@@ -31,8 +31,8 @@ function extrairMensagem(msg: WAMessage): {
  * 1) Admin responde "vendi 5ml para Fulana por 50" -> registra venda manual/offline.
  * 2) Qualquer participante responde com a quantidade ("5", "5ml", "0,5l") -> lance
  *    normal (múltiplo de 3/5/10, respeitando o mínimo configurado).
- * 3) Qualquer participante responde "APC" (ou "APC 10ml" etc) -> arremata o frasco
- *    físico original + caixa, sempre pelo estoque restante no momento.
+ * 3) Qualquer participante responde "APC" (leva tudo que sobrar) ou "APC 50" (leva
+ *    50ml especificamente) -> arremata o frasco físico original + caixa.
  * Lance válido: debita estoque, confirma no grupo marcando a pessoa, e manda o valor +
  * PIX + pedido de endereço no privado dela. Se esgotar, fecha com foto + lista de quem comprou. */
 export async function tratarMensagemRecebida(msg: WAMessage): Promise<void> {
@@ -68,9 +68,9 @@ export async function tratarMensagemRecebida(msg: WAMessage): Promise<void> {
   }
 
   // 2) Lance no leilão (quantidade normal ou APC) — aberto a qualquer participante.
-  const ehApc = ehComandoApc(dados.texto);
-  const quantidadeMl = ehApc ? null : parseLanceQuantidade(dados.texto);
-  if (!ehApc && quantidadeMl === null) return; // não é lance nem comando de admin — ignora, é conversa normal
+  const comandoApc = parseComandoApc(dados.texto);
+  const quantidadeMl = comandoApc ? comandoApc.quantidadeMl : parseLanceQuantidade(dados.texto);
+  if (!comandoApc && quantidadeMl === null) return; // não é lance nem comando de admin — ignora, é conversa normal
 
   const perfume = await buscarPerfumePorMensagemRespondida(dados.quotedMessageId);
   if (!perfume) return; // reply a outra mensagem qualquer, não a um post de perfume
@@ -85,7 +85,7 @@ export async function tratarMensagemRecebida(msg: WAMessage): Promise<void> {
       postadoEm: perfume.postado_em,
       apcDisponivel: perfume.apc_disponivel,
     },
-    tipo: ehApc ? "apc" : "quantidade",
+    tipo: comandoApc ? "apc" : "quantidade",
     quantidadeMl: quantidadeMl ?? undefined,
     compradorJid: dados.participantJid,
     compradorTelefone: dados.senderPhone,
@@ -110,7 +110,7 @@ export async function tratarMensagemRecebida(msg: WAMessage): Promise<void> {
 
   console.log(
     resultado.ok
-      ? `Lance registrado (${ehApc ? "APC" : `${quantidadeMl}ml`}) de "${perfume.nome}" para ${dados.senderPhone}`
+      ? `Lance registrado (${comandoApc ? `APC${quantidadeMl ? ` ${quantidadeMl}ml` : ""}` : `${quantidadeMl}ml`}) de "${perfume.nome}" para ${dados.senderPhone}`
       : `Lance recusado de "${perfume.nome}" pedido por ${dados.senderPhone}: ${resultado.mensagemGrupo}`
   );
 }
