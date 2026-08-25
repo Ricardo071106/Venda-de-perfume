@@ -1,17 +1,16 @@
 import { readRange, updateCell } from "./client.js";
 import { query } from "../db.js";
 import { registrarEntradaEstoque, registrarSaidaEstoque } from "../services/estoque.js";
-import { getOrCreateFornecedorId } from "../services/fornecedores.js";
 
 // Aba "Perfumes": A id | B nome | C marca | D composicao | E foto_url | F ml_frasco
-//                 G preco_ml | H custo_ml | I fornecedor | J estoque_ml | K status
-//                 L postar_no_grupo | M postado | N repor_ml | O fragrantica_url
+//                 G preco_ml | H custo_ml | I estoque_ml | J status
+//                 K postar_no_grupo | L postado | M repor_ml | N fragrantica_url
 //
-// estoque_ml (J) e status (K, 'ativo'/'esgotado') são espelho do banco: o bot
+// estoque_ml (I) e status (J, 'ativo'/'esgotado') são espelho do banco: o bot
 // regrava esses valores a cada ciclo, não edite direto ali. Para repor estoque,
-// preencha repor_ml (N) com a quantidade que entrou — o bot soma no banco,
+// preencha repor_ml (M) com a quantidade que entrou — o bot soma no banco,
 // volta o status pra 'ativo' se estava esgotado, e limpa a célula.
-const PERFUMES_RANGE = "Perfumes!A2:O";
+const PERFUMES_RANGE = "Perfumes!A2:N";
 
 // Aba "Vendas": A id | B perfume | C cliente | D telefone | E ml_vendido
 //               F valor_total | G forma_pagamento | H data | I origem
@@ -33,7 +32,7 @@ export interface PerfumeParaPostar {
 /** "Retrato" dos campos que aparecem na legenda do post — usado só pra comparar
  * se algo relevante mudou desde a última publicação, não pra guardar em outro lugar.
  * Propositalmente NÃO inclui estoque_ml (mudaria a cada venda, republicaria demais)
- * nem campos internos (custo, fornecedor) que não aparecem no post. */
+ * nem campos internos (custo) que não aparecem no post. */
 export function snapshotConteudoPerfume(p: {
   nome: string;
   marca: string;
@@ -64,7 +63,7 @@ export async function syncPerfumesFromSheet(): Promise<PerfumeParaPostar[]> {
     const sheetRow = i + 2; // offset porque a leitura começa em A2
     const [
       idCell, nome, marca, composicao, fotoUrl, mlFrascoStr,
-      precoMlStr, custoMlStr, fornecedorNome, estoqueMlStr, status,
+      precoMlStr, custoMlStr, estoqueMlStr, status,
       postarNoGrupo, postado, reporMlStr, fragranticaUrl,
     ] = row;
 
@@ -73,7 +72,6 @@ export async function syncPerfumesFromSheet(): Promise<PerfumeParaPostar[]> {
     const mlFrasco = Number(mlFrascoStr ?? 0);
     const precoMl = Number(precoMlStr ?? 0);
     const custoMl = custoMlStr ? Number(custoMlStr) : null;
-    const fornecedorId = await getOrCreateFornecedorId(fornecedorNome);
 
     let perfumeId: number;
     let estoqueMl: number;
@@ -85,10 +83,10 @@ export async function syncPerfumesFromSheet(): Promise<PerfumeParaPostar[]> {
       perfumeId = Number(idCell);
       await query(
         `UPDATE perfumes SET nome=$1, marca=$2, composicao=$3, foto_url=$4, ml_frasco=$5,
-         preco_ml=$6, custo_ml=$7, fornecedor_id=$8,
-         sheet_row=$9, fragrantica_url=$10, atualizado_em=now()
-         WHERE id=$11`,
-        [nome, marca, composicao, fotoUrl, mlFrasco, precoMl, custoMl, fornecedorId,
+         preco_ml=$6, custo_ml=$7,
+         sheet_row=$8, fragrantica_url=$9, atualizado_em=now()
+         WHERE id=$10`,
+        [nome, marca, composicao, fotoUrl, mlFrasco, precoMl, custoMl,
           sheetRow, fragranticaUrl || null, perfumeId]
       );
 
@@ -98,7 +96,7 @@ export async function syncPerfumesFromSheet(): Promise<PerfumeParaPostar[]> {
         const resultado = await registrarEntradaEstoque(perfumeId, reporMl, "reposição via planilha");
         estoqueMl = resultado.estoqueMl;
         statusAtual = resultado.status;
-        await updateCell(`Perfumes!N${sheetRow}`, ""); // limpa a célula processada
+        await updateCell(`Perfumes!M${sheetRow}`, ""); // limpa a célula processada
       } else {
         const atual = await query<{ estoque_ml: number; status: string }>(
           "SELECT estoque_ml, status FROM perfumes WHERE id = $1",
@@ -107,8 +105,8 @@ export async function syncPerfumesFromSheet(): Promise<PerfumeParaPostar[]> {
         estoqueMl = Number(atual[0]?.estoque_ml ?? 0);
         statusAtual = atual[0]?.status ?? "ativo";
       }
-      await updateCell(`Perfumes!J${sheetRow}`, estoqueMl); // espelha o banco na planilha
-      await updateCell(`Perfumes!K${sheetRow}`, statusAtual); // idem pro status ('ativo'/'esgotado')
+      await updateCell(`Perfumes!I${sheetRow}`, estoqueMl); // espelha o banco na planilha
+      await updateCell(`Perfumes!J${sheetRow}`, statusAtual); // idem pro status ('ativo'/'esgotado')
 
       // Já foi postado antes e algum campo do post (nome/marca/composição/ml/preço/
       // foto/fragrantica) mudou desde a última publicação? Marca pra republicar —
@@ -137,9 +135,9 @@ export async function syncPerfumesFromSheet(): Promise<PerfumeParaPostar[]> {
       estoqueMl = estoqueMlStr ? Number(estoqueMlStr) : mlFrasco;
       const inserted = await query<{ id: number }>(
         `INSERT INTO perfumes (nome, marca, composicao, foto_url, ml_frasco, preco_ml,
-         custo_ml, fornecedor_id, estoque_ml, status, sheet_row, fragrantica_url)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING id`,
-        [nome, marca, composicao, fotoUrl, mlFrasco, precoMl, custoMl, fornecedorId,
+         custo_ml, estoque_ml, status, sheet_row, fragrantica_url)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING id`,
+        [nome, marca, composicao, fotoUrl, mlFrasco, precoMl, custoMl,
           estoqueMl, status || "ativo", sheetRow, fragranticaUrl || null]
       );
       perfumeId = inserted[0].id;

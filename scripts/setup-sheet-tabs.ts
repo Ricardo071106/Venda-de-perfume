@@ -6,14 +6,13 @@ import { sheets, SPREADSHEET_ID } from "../src/sheets/client.js";
 const ABAS: Record<string, string[]> = {
   Perfumes: [
     "id", "nome", "marca", "composição", "foto_url", "ml_frasco",
-    "preço_ml", "custo_ml", "fornecedor", "estoque_ml", "status",
+    "preço_ml", "custo_ml", "estoque_ml", "status",
     "postar_no_grupo", "postado", "repor_ml", "fragrantica_url",
   ],
   Vendas: [
     "id", "perfume", "cliente", "telefone", "ml_vendido",
     "valor_total", "forma_pagamento", "data", "origem",
   ],
-  Fornecedores: ["nome", "contato", "observações"],
   Financeiro: ["(fórmulas manuais — o bot não escreve aqui)"],
 };
 

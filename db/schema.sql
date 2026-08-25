@@ -1,14 +1,6 @@
 -- Schema: venda de perfumes a ml via WhatsApp
 -- Postgres é a fonte da verdade; a planilha e o WhatsApp são interfaces de entrada.
 
-CREATE TABLE IF NOT EXISTS fornecedores (
-    id SERIAL PRIMARY KEY,
-    nome TEXT NOT NULL,
-    contato TEXT,
-    observacoes TEXT,
-    criado_em TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-
 CREATE TABLE IF NOT EXISTS perfumes (
     id SERIAL PRIMARY KEY,
     nome TEXT NOT NULL,
@@ -19,7 +11,6 @@ CREATE TABLE IF NOT EXISTS perfumes (
     ml_frasco NUMERIC(10, 2) NOT NULL,
     preco_ml NUMERIC(10, 2) NOT NULL,
     custo_ml NUMERIC(10, 2),
-    fornecedor_id INTEGER REFERENCES fornecedores(id),
     estoque_ml NUMERIC(10, 2) NOT NULL DEFAULT 0,
     status TEXT NOT NULL DEFAULT 'ativo' CHECK (status IN ('ativo', 'esgotado')),
     sheet_row INTEGER, -- linha correspondente na aba "Perfumes" do Sheets
@@ -71,6 +62,10 @@ ALTER TABLE perfumes ADD COLUMN IF NOT EXISTS ultimo_conteudo_postado TEXT;
 -- Idempotente: bancos criados antes da venda pelo painel só aceitavam 'manual_planilha'/'whatsapp_bot'.
 ALTER TABLE vendas DROP CONSTRAINT IF EXISTS vendas_origem_check;
 ALTER TABLE vendas ADD CONSTRAINT vendas_origem_check CHECK (origem IN ('manual_planilha', 'whatsapp_bot', 'painel_web'));
+
+-- Idempotente: remove o conceito de fornecedor (não é mais usado).
+ALTER TABLE perfumes DROP COLUMN IF EXISTS fornecedor_id;
+DROP TABLE IF EXISTS fornecedores;
 
 CREATE INDEX IF NOT EXISTS idx_vendas_perfume ON vendas(perfume_id);
 CREATE INDEX IF NOT EXISTS idx_estoque_perfume ON estoque_movimentos(perfume_id);

@@ -2,7 +2,6 @@ import { query } from "../db.js";
 import { enviarFotoNoGrupo, montarLegendaPerfume } from "../whatsapp/baileys-client.js";
 import { marcarPerfumePostado } from "../sheets/write-to-sheet.js";
 import { appendRow, readRange, updateCells, clearRange } from "../sheets/client.js";
-import { getOrCreateFornecedorId } from "./fornecedores.js";
 import { registrarAjusteEstoque } from "./estoque.js";
 import { snapshotConteudoPerfume, type PerfumeParaPostar } from "../sheets/sync-from-sheet.js";
 
@@ -16,7 +15,6 @@ export interface Perfume {
   mlFrasco: number;
   precoMl: number;
   custoMl: number | null;
-  fornecedorNome: string | null;
   estoqueMl: number;
   status: string;
 }
@@ -33,15 +31,12 @@ interface PerfumeRow {
   custo_ml: number | null;
   estoque_ml: number;
   status: string;
-  fornecedor_nome: string | null;
 }
 
 const SELECT_PERFUME = `
   SELECT p.id, p.nome, p.marca, p.composicao, p.foto_url, p.fragrantica_url,
-         p.ml_frasco, p.preco_ml, p.custo_ml, p.estoque_ml, p.status,
-         f.nome AS fornecedor_nome
+         p.ml_frasco, p.preco_ml, p.custo_ml, p.estoque_ml, p.status
   FROM perfumes p
-  LEFT JOIN fornecedores f ON f.id = p.fornecedor_id
 `;
 
 function mapRow(r: PerfumeRow): Perfume {
@@ -55,7 +50,6 @@ function mapRow(r: PerfumeRow): Perfume {
     mlFrasco: Number(r.ml_frasco),
     precoMl: Number(r.preco_ml),
     custoMl: r.custo_ml !== null ? Number(r.custo_ml) : null,
-    fornecedorNome: r.fornecedor_nome,
     estoqueMl: Number(r.estoque_ml),
     status: r.status,
   };
@@ -93,7 +87,6 @@ export interface NovoPerfumeInput {
   mlFrasco: number;
   precoMl: number;
   custoMl?: number | null;
-  fornecedorNome?: string;
   estoqueMl?: number;
   postarNoGrupo?: boolean;
 }
@@ -116,22 +109,20 @@ export async function criarPerfume(input: NovoPerfumeInput): Promise<Perfume> {
   const composicao = input.composicao?.trim() || null;
   const fotoUrl = input.fotoUrl?.trim() || null;
   const fragranticaUrl = input.fragranticaUrl?.trim() || null;
-  const fornecedorNome = input.fornecedorNome?.trim() || null;
-  const fornecedorId = await getOrCreateFornecedorId(fornecedorNome);
   const estoqueMl = input.estoqueMl && input.estoqueMl > 0 ? input.estoqueMl : input.mlFrasco;
 
   const [inserted] = await query<{ id: number }>(
     `INSERT INTO perfumes (nome, marca, composicao, foto_url, fragrantica_url, ml_frasco,
-     preco_ml, custo_ml, fornecedor_id, estoque_ml, status)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'ativo') RETURNING id`,
+     preco_ml, custo_ml, estoque_ml, status)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'ativo') RETURNING id`,
     [nome, marca, composicao, fotoUrl, fragranticaUrl, input.mlFrasco, input.precoMl,
-      input.custoMl ?? null, fornecedorId, estoqueMl]
+      input.custoMl ?? null, estoqueMl]
   );
   const id = inserted.id;
 
-  const sheetRow = await appendRow("Perfumes!A2:O", [
+  const sheetRow = await appendRow("Perfumes!A2:N", [
     id, nome, marca ?? "", composicao ?? "", fotoUrl ?? "", input.mlFrasco, input.precoMl,
-    input.custoMl ?? "", fornecedorNome ?? "", estoqueMl, "ativo",
+    input.custoMl ?? "", estoqueMl, "ativo",
     input.postarNoGrupo ? "TRUE" : "", "", "", fragranticaUrl ?? "",
   ]);
   if (sheetRow) {
@@ -150,7 +141,6 @@ export interface PatchPerfumeInput {
   mlFrasco?: number;
   precoMl?: number;
   custoMl?: number | null;
-  fornecedorNome?: string;
 }
 
 /** Edita os dados cadastrais de um perfume já existente (não move estoque —
@@ -168,18 +158,15 @@ export async function atualizarPerfume(id: number, patch: PatchPerfumeInput): Pr
   const mlFrasco = patch.mlFrasco ?? atual.mlFrasco;
   const precoMl = patch.precoMl ?? atual.precoMl;
   const custoMl = patch.custoMl !== undefined ? patch.custoMl : atual.custoMl;
-  const fornecedorNome = patch.fornecedorNome !== undefined ? patch.fornecedorNome.trim() || null : atual.fornecedorNome;
 
   if (!Number.isFinite(mlFrasco) || mlFrasco <= 0) throw new Error("ml do frasco precisa ser maior que zero.");
   if (!Number.isFinite(precoMl) || precoMl <= 0) throw new Error("Preço/ml precisa ser maior que zero.");
 
-  const fornecedorId = await getOrCreateFornecedorId(fornecedorNome);
-
   await query(
     `UPDATE perfumes SET nome=$1, marca=$2, composicao=$3, foto_url=$4, fragrantica_url=$5,
-     ml_frasco=$6, preco_ml=$7, custo_ml=$8, fornecedor_id=$9, atualizado_em=now()
-     WHERE id=$10`,
-    [nome, marca, composicao, fotoUrl, fragranticaUrl, mlFrasco, precoMl, custoMl, fornecedorId, id]
+     ml_frasco=$6, preco_ml=$7, custo_ml=$8, atualizado_em=now()
+     WHERE id=$9`,
+    [nome, marca, composicao, fotoUrl, fragranticaUrl, mlFrasco, precoMl, custoMl, id]
   );
 
   const sheetRow = await encontrarLinhaDoPerfume(id);
@@ -192,8 +179,7 @@ export async function atualizarPerfume(id: number, patch: PatchPerfumeInput): Pr
       { range: `Perfumes!F${sheetRow}`, value: mlFrasco },
       { range: `Perfumes!G${sheetRow}`, value: precoMl },
       { range: `Perfumes!H${sheetRow}`, value: custoMl ?? "" },
-      { range: `Perfumes!I${sheetRow}`, value: fornecedorNome ?? "" },
-      { range: `Perfumes!O${sheetRow}`, value: fragranticaUrl ?? "" },
+      { range: `Perfumes!N${sheetRow}`, value: fragranticaUrl ?? "" },
     ]);
   }
 
@@ -218,7 +204,7 @@ export async function removerPerfume(id: number): Promise<void> {
 
   const sheetRow = await encontrarLinhaDoPerfume(id);
   if (sheetRow) {
-    await clearRange(`Perfumes!A${sheetRow}:O${sheetRow}`);
+    await clearRange(`Perfumes!A${sheetRow}:N${sheetRow}`);
   }
 }
 
@@ -248,8 +234,8 @@ export async function ajustarEstoquePainel(
   const sheetRow = await encontrarLinhaDoPerfume(id);
   if (sheetRow) {
     await updateCells([
-      { range: `Perfumes!J${sheetRow}`, value: resultado.estoqueMl },
-      { range: `Perfumes!K${sheetRow}`, value: resultado.status },
+      { range: `Perfumes!I${sheetRow}`, value: resultado.estoqueMl },
+      { range: `Perfumes!J${sheetRow}`, value: resultado.status },
     ]);
   }
 

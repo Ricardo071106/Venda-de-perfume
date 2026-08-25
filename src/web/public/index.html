@@ -189,7 +189,6 @@
         <div class="form-grid">
           <div><label class="field-label">Nome *</label><input class="field" name="nome" required /></div>
           <div><label class="field-label">Marca</label><input class="field" name="marca" /></div>
-          <div><label class="field-label">Fornecedor</label><input class="field" name="fornecedorNome" /></div>
           <div><label class="field-label">ml do frasco *</label><input class="field" name="mlFrasco" type="number" step="0.1" required /></div>
           <div><label class="field-label">Estoque inicial (ml)</label><input class="field" name="estoqueMl" type="number" step="0.1" placeholder="= ml do frasco" /></div>
           <div><label class="field-label">Preço/ml (R$) *</label><input class="field" name="precoMl" type="number" step="0.01" required /></div>
@@ -226,7 +225,7 @@
         <table id="tabelaTodos">
           <thead>
             <tr>
-              <th>Nome</th><th>Marca</th><th>Composição</th><th>Fornecedor</th>
+              <th>Nome</th><th>Marca</th><th>Composição</th>
               <th class="num">ml frasco</th><th class="num">Preço/ml</th><th class="num">Custo/ml</th>
               <th>Foto</th><th>Fragrantica</th><th class="num">Estoque</th><th>Status</th><th>Ações</th>
             </tr>
@@ -436,7 +435,7 @@
   function renderTodos(perfumes) {
     const tbody = document.querySelector("#tabelaTodos tbody");
     if (!perfumes.length) {
-      tbody.innerHTML = '<tr><td colspan="12" class="empty">Nenhum perfume cadastrado ainda.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="11" class="empty">Nenhum perfume cadastrado ainda.</td></tr>';
       return;
     }
     tbody.innerHTML = perfumes.map((p) => {
@@ -448,7 +447,6 @@
             <td>${p.nome}</td>
             <td>${p.marca ?? ""}</td>
             <td>${p.composicao ?? ""}</td>
-            <td>${p.fornecedorNome ?? ""}</td>
             <td class="num">${formatarMl(p.mlFrasco)}</td>
             <td class="num">${formatarMoeda(p.precoMl)}</td>
             <td class="num">${p.custoMl != null ? formatarMoeda(p.custoMl) : "—"}</td>
@@ -465,7 +463,6 @@
           <td><input class="field campo" data-campo="nome" value="${escapeAttr(p.nome)}" /></td>
           <td><input class="field campo" data-campo="marca" value="${escapeAttr(p.marca ?? "")}" /></td>
           <td><input class="field campo" data-campo="composicao" value="${escapeAttr(p.composicao ?? "")}" /></td>
-          <td><input class="field campo" data-campo="fornecedorNome" value="${escapeAttr(p.fornecedorNome ?? "")}" /></td>
           <td><input class="field campo" data-campo="mlFrasco" type="number" step="0.1" value="${p.mlFrasco}" /></td>
           <td><input class="field campo" data-campo="precoMl" type="number" step="0.01" value="${p.precoMl}" /></td>
           <td><input class="field campo" data-campo="custoMl" type="number" step="0.01" value="${p.custoMl ?? ""}" /></td>
@@ -616,7 +613,6 @@
     const payload = {
       nome: dados.nome,
       marca: dados.marca || undefined,
-      fornecedorNome: dados.fornecedorNome || undefined,
       mlFrasco: Number(dados.mlFrasco),
       estoqueMl: dados.estoqueMl ? Number(dados.estoqueMl) : undefined,
       precoMl: Number(dados.precoMl),
