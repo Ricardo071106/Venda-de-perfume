@@ -51,8 +51,21 @@ export async function tratarMensagemRecebida(msg: WAMessage): Promise<void> {
     return;
   }
 
-  if (dados.fromMe || !dados.texto || !dados.quotedMessageId) return;
+  if (dados.fromMe || !dados.texto) return;
   if (dados.remoteJid !== groupIdConfigurado) return;
+
+  // "cancelar" é um comando explícito e inequívoco — vale a pena avisar quando não
+  // deu certo, diferente de lance/APC (que ficam quietos pra não responder qualquer
+  // mensagem solta do grupo). Sem reply nenhum: não dá pra saber qual perfume é.
+  if (ehComandoCancelar(dados.texto) && !dados.quotedMessageId) {
+    await enviarMensagemGrupo(
+      `❌ @${dados.senderPhone}, pra cancelar, *responda* (reply) direto na mensagem/foto do perfume que você quer cancelar — não dá pra saber qual é só pelo "cancelar" solto.`,
+      [dados.participantJid]
+    );
+    return;
+  }
+
+  if (!dados.quotedMessageId) return;
 
   // 1) Comando de admin (venda manual/offline) — frase completa, só de números autorizados.
   if (config.adminPhoneNumbers.includes(dados.senderPhone)) {
@@ -73,7 +86,15 @@ export async function tratarMensagemRecebida(msg: WAMessage): Promise<void> {
   // nesse perfume, na rodada atual, e devolve o ml ao estoque.
   if (ehComandoCancelar(dados.texto)) {
     const perfumeCancelar = await buscarPerfumePorMensagemRespondida(dados.quotedMessageId);
-    if (!perfumeCancelar) return; // reply a outra mensagem qualquer, não a um post de perfume
+    if (!perfumeCancelar) {
+      // Respondeu a alguma mensagem, mas não é o post de um perfume — avisa em vez
+      // de ficar quieto, já que "cancelar" é um comando explícito.
+      await enviarMensagemGrupo(
+        `❌ @${dados.senderPhone}, não achei nenhum perfume nessa mensagem — responda direto na foto/post do perfume que você quer cancelar.`,
+        [dados.participantJid]
+      );
+      return;
+    }
 
     const resultadoCancelamento = await cancelarLances({
       perfumeId: perfumeCancelar.id,
