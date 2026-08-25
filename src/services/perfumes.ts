@@ -18,8 +18,7 @@ export interface Perfume {
   custoMl: number | null;
   estoqueMl: number;
   status: string;
-  apcMl: number | null;
-  apcPreco: number | null;
+  apcDisponivel: boolean;
 }
 
 interface PerfumeRow {
@@ -34,13 +33,12 @@ interface PerfumeRow {
   custo_ml: number | null;
   estoque_ml: number;
   status: string;
-  apc_ml: number | null;
-  apc_preco: number | null;
+  apc_disponivel: boolean;
 }
 
 const SELECT_PERFUME = `
   SELECT p.id, p.nome, p.marca, p.composicao, p.foto_url, p.fragrantica_url,
-         p.ml_frasco, p.preco_ml, p.custo_ml, p.estoque_ml, p.status, p.apc_ml, p.apc_preco
+         p.ml_frasco, p.preco_ml, p.custo_ml, p.estoque_ml, p.status, p.apc_disponivel
   FROM perfumes p
 `;
 
@@ -57,8 +55,7 @@ function mapRow(r: PerfumeRow): Perfume {
     custoMl: r.custo_ml !== null ? Number(r.custo_ml) : null,
     estoqueMl: Number(r.estoque_ml),
     status: r.status,
-    apcMl: r.apc_ml !== null ? Number(r.apc_ml) : null,
-    apcPreco: r.apc_preco !== null ? Number(r.apc_preco) : null,
+    apcDisponivel: r.apc_disponivel,
   };
 }
 
@@ -96,8 +93,7 @@ export interface NovoPerfumeInput {
   custoMl?: number | null;
   estoqueMl?: number;
   postarNoGrupo?: boolean;
-  apcMl?: number | null;
-  apcPreco?: number | null;
+  apcDisponivel?: boolean;
 }
 
 /** Cria um perfume novo direto pelo painel: grava no banco e também adiciona a
@@ -119,16 +115,14 @@ export async function criarPerfume(input: NovoPerfumeInput): Promise<Perfume> {
   const fotoUrl = input.fotoUrl?.trim() || null;
   const fragranticaUrl = input.fragranticaUrl?.trim() || null;
   const estoqueMl = input.estoqueMl && input.estoqueMl > 0 ? input.estoqueMl : input.mlFrasco;
-  const apcValido = Boolean(input.apcMl && input.apcMl > 0 && input.apcPreco && input.apcPreco > 0);
-  const apcMl = apcValido ? input.apcMl! : null;
-  const apcPreco = apcValido ? input.apcPreco! : null;
+  const apcDisponivel = Boolean(input.apcDisponivel);
 
   const [inserted] = await query<{ id: number }>(
     `INSERT INTO perfumes (nome, marca, composicao, foto_url, fragrantica_url, ml_frasco,
-     preco_ml, custo_ml, estoque_ml, status, apc_ml, apc_preco)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'ativo',$10,$11) RETURNING id`,
+     preco_ml, custo_ml, estoque_ml, status, apc_disponivel)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'ativo',$10) RETURNING id`,
     [nome, marca, composicao, fotoUrl, fragranticaUrl, input.mlFrasco, input.precoMl,
-      input.custoMl ?? null, estoqueMl, apcMl, apcPreco]
+      input.custoMl ?? null, estoqueMl, apcDisponivel]
   );
   const id = inserted.id;
 
@@ -153,8 +147,7 @@ export interface PatchPerfumeInput {
   mlFrasco?: number;
   precoMl?: number;
   custoMl?: number | null;
-  apcMl?: number | null;
-  apcPreco?: number | null;
+  apcDisponivel?: boolean;
 }
 
 /** Edita os dados cadastrais de um perfume já existente (não move estoque —
@@ -172,20 +165,16 @@ export async function atualizarPerfume(id: number, patch: PatchPerfumeInput): Pr
   const mlFrasco = patch.mlFrasco ?? atual.mlFrasco;
   const precoMl = patch.precoMl ?? atual.precoMl;
   const custoMl = patch.custoMl !== undefined ? patch.custoMl : atual.custoMl;
-  const apcMlBruto = patch.apcMl !== undefined ? patch.apcMl : atual.apcMl;
-  const apcPrecoBruto = patch.apcPreco !== undefined ? patch.apcPreco : atual.apcPreco;
-  const apcValido = Boolean(apcMlBruto && apcMlBruto > 0 && apcPrecoBruto && apcPrecoBruto > 0);
-  const apcMl = apcValido ? apcMlBruto : null;
-  const apcPreco = apcValido ? apcPrecoBruto : null;
+  const apcDisponivel = patch.apcDisponivel !== undefined ? patch.apcDisponivel : atual.apcDisponivel;
 
   if (!Number.isFinite(mlFrasco) || mlFrasco <= 0) throw new Error("ml do frasco precisa ser maior que zero.");
   if (!Number.isFinite(precoMl) || precoMl <= 0) throw new Error("Preço/ml precisa ser maior que zero.");
 
   await query(
     `UPDATE perfumes SET nome=$1, marca=$2, composicao=$3, foto_url=$4, fragrantica_url=$5,
-     ml_frasco=$6, preco_ml=$7, custo_ml=$8, apc_ml=$9, apc_preco=$10, atualizado_em=now()
-     WHERE id=$11`,
-    [nome, marca, composicao, fotoUrl, fragranticaUrl, mlFrasco, precoMl, custoMl, apcMl, apcPreco, id]
+     ml_frasco=$6, preco_ml=$7, custo_ml=$8, apc_disponivel=$9, atualizado_em=now()
+     WHERE id=$10`,
+    [nome, marca, composicao, fotoUrl, fragranticaUrl, mlFrasco, precoMl, custoMl, apcDisponivel, id]
   );
 
   const sheetRow = await encontrarLinhaDoPerfume(id);
@@ -266,8 +255,8 @@ export async function ajustarEstoquePainel(
  * NOVO (nunca postado ainda), manda um aviso de texto avisando que o leilão vai
  * abrir — republicação por edição não repete o aviso, só a mensagem principal. */
 export async function postarPerfumeNoGrupo(perfume: PerfumeParaPostar): Promise<void> {
-  const [atual] = await query<{ postado_em: string | null; apc_ml: number | null; apc_preco: number | null }>(
-    "SELECT postado_em, apc_ml, apc_preco FROM perfumes WHERE id = $1",
+  const [atual] = await query<{ postado_em: string | null; apc_disponivel: boolean }>(
+    "SELECT postado_em, apc_disponivel FROM perfumes WHERE id = $1",
     [perfume.id]
   );
   const primeiroPost = !atual?.postado_em;
@@ -288,8 +277,7 @@ export async function postarPerfumeNoGrupo(perfume: PerfumeParaPostar): Promise<
     estoqueMl: perfume.estoqueMl,
     precoMl: perfume.precoMl,
     fragranticaUrl: perfume.fragranticaUrl,
-    apcMl: atual?.apc_ml !== null && atual?.apc_ml !== undefined ? Number(atual.apc_ml) : null,
-    apcPreco: atual?.apc_preco !== null && atual?.apc_preco !== undefined ? Number(atual.apc_preco) : null,
+    apcDisponivel: Boolean(atual?.apc_disponivel),
     mlMinimo: config.mlMinimo,
     assinaturaMarca: config.assinaturaMarca,
   });

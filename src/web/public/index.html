@@ -222,9 +222,11 @@
           <div><label class="field-label">Composição</label><input class="field" name="composicao" /></div>
           <div><label class="field-label">Foto (URL)</label><input class="field" name="fotoUrl" type="url" /></div>
           <div><label class="field-label">Fragrantica (URL)</label><input class="field" name="fragranticaUrl" type="url" /></div>
-          <div><label class="field-label">APC — ml do frasco (opcional)</label><input class="field" name="apcMl" type="number" step="0.1" placeholder="ex: 50" /></div>
-          <div><label class="field-label">APC — preço total (R$)</label><input class="field" name="apcPreco" type="number" step="0.01" placeholder="ex: 2000" /></div>
         </div>
+        <label style="display:flex; align-items:center; gap:6px; font-size:13px; margin-bottom:8px;">
+          <input type="checkbox" name="apcDisponivel" />
+          APC disponível (frasco + caixa original — quem pedir leva tudo que sobrar, no mesmo preço/ml)
+        </label>
         <label style="display:flex; align-items:center; gap:6px; font-size:13px; margin-bottom:12px;">
           <input type="checkbox" name="postarNoGrupo" />
           Postar no grupo do WhatsApp no próximo "Atualizar agora"
@@ -255,7 +257,7 @@
             <tr>
               <th>Nome</th><th>Marca</th><th>Composição</th>
               <th class="num">ml frasco</th><th class="num">Preço/ml</th><th class="num">Custo/ml</th>
-              <th>Foto</th><th>Fragrantica</th><th class="num">APC ml</th><th class="num">APC preço</th>
+              <th>Foto</th><th>Fragrantica</th><th>APC</th>
               <th class="num">Estoque</th><th>Status</th><th>Ações</th>
             </tr>
           </thead>
@@ -464,7 +466,7 @@
   function renderTodos(perfumes) {
     const tbody = document.querySelector("#tabelaTodos tbody");
     if (!perfumes.length) {
-      tbody.innerHTML = '<tr><td colspan="13" class="empty">Nenhum perfume cadastrado ainda.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="12" class="empty">Nenhum perfume cadastrado ainda.</td></tr>';
       return;
     }
     tbody.innerHTML = perfumes.map((p) => {
@@ -481,8 +483,7 @@
             <td class="num">${p.custoMl != null ? formatarMoeda(p.custoMl) : "—"}</td>
             <td>${p.fotoUrl ? `<a href="${p.fotoUrl}" target="_blank" rel="noopener">link</a>` : "—"}</td>
             <td>${p.fragranticaUrl ? `<a href="${p.fragranticaUrl}" target="_blank" rel="noopener">link</a>` : "—"}</td>
-            <td class="num">${p.apcMl != null ? formatarMl(p.apcMl) : "—"}</td>
-            <td class="num">${p.apcPreco != null ? formatarMoeda(p.apcPreco) : "—"}</td>
+            <td>${p.apcDisponivel ? '<span class="status-tag status-ativo">Sim</span>' : "—"}</td>
             <td class="num">${formatarMl(p.estoqueMl)}</td>
             <td>${statusHtml}</td>
             <td class="row-actions"><button class="btn-secondary btn-sm btn-editar" data-id="${p.id}">Editar</button></td>
@@ -499,8 +500,12 @@
           <td><input class="field campo" data-campo="custoMl" type="number" step="0.01" value="${p.custoMl ?? ""}" /></td>
           <td><input class="field campo" data-campo="fotoUrl" type="url" value="${escapeAttr(p.fotoUrl ?? "")}" /></td>
           <td><input class="field campo" data-campo="fragranticaUrl" type="url" value="${escapeAttr(p.fragranticaUrl ?? "")}" /></td>
-          <td><input class="field campo" data-campo="apcMl" type="number" step="0.1" value="${p.apcMl ?? ""}" placeholder="ml" /></td>
-          <td><input class="field campo" data-campo="apcPreco" type="number" step="0.01" value="${p.apcPreco ?? ""}" placeholder="R$" /></td>
+          <td>
+            <label style="display:flex; align-items:center; gap:4px; white-space:nowrap;">
+              <input type="checkbox" class="campo" data-campo="apcDisponivel" ${p.apcDisponivel ? "checked" : ""} />
+              APC
+            </label>
+          </td>
           <td class="num">${formatarMl(p.estoqueMl)}</td>
           <td>${statusHtml}</td>
           <td class="row-actions">
@@ -531,9 +536,8 @@
         row.querySelectorAll(".campo").forEach((input) => {
           const nomeCampo = input.dataset.campo;
           if (nomeCampo === "mlFrasco" || nomeCampo === "precoMl") campos[nomeCampo] = Number(input.value);
-          else if (nomeCampo === "custoMl" || nomeCampo === "apcMl" || nomeCampo === "apcPreco") {
-            campos[nomeCampo] = input.value === "" ? null : Number(input.value);
-          }
+          else if (nomeCampo === "custoMl") campos[nomeCampo] = input.value === "" ? null : Number(input.value);
+          else if (nomeCampo === "apcDisponivel") campos[nomeCampo] = input.checked;
           else campos[nomeCampo] = input.value;
         });
         btn.disabled = true;
@@ -669,8 +673,7 @@
       composicao: dados.composicao || undefined,
       fotoUrl: dados.fotoUrl || undefined,
       fragranticaUrl: dados.fragranticaUrl || undefined,
-      apcMl: dados.apcMl ? Number(dados.apcMl) : undefined,
-      apcPreco: dados.apcPreco ? Number(dados.apcPreco) : undefined,
+      apcDisponivel: dados.apcDisponivel === "on",
       postarNoGrupo: dados.postarNoGrupo === "on",
     };
     const btn = form.querySelector("button[type=submit]");

@@ -97,8 +97,7 @@ export function montarLegendaPerfume(p: {
   estoqueMl: number;
   precoMl: number;
   fragranticaUrl?: string;
-  apcMl?: number | null;
-  apcPreco?: number | null;
+  apcDisponivel?: boolean;
   mlMinimo?: number;
   assinaturaMarca?: string;
 }): string {
@@ -115,14 +114,12 @@ export function montarLegendaPerfume(p: {
     p.composicao ? `\n🌸 ${p.composicao}` : null,
     p.fragranticaUrl ? `\n🔗 Fragrantica:\n${p.fragranticaUrl}` : null,
     tabelaPreco ? `\n-----------------------------\n${tabelaPreco}` : null,
-    p.apcMl && p.apcPreco
-      ? `📦🚀 *APC (frasco + caixa original) + ${p.apcMl}ml: ${formatarPreco(p.apcPreco)}*`
-      : null,
+    p.apcDisponivel ? `📦🚀 *APC disponível!* (frasco + caixa original)` : null,
     "-----------------------------",
     "",
     "✅ *Como comprar:*",
     `Responda esta mensagem com a quantidade em ml que quer (múltiplos de 3, 5 ou 10 — ex: *5ml* ou *5*). Mínimo: ${mlMinimo}ml.`,
-    p.apcMl ? `Ou responda *APC* pra levar o frasco + caixa original.` : null,
+    p.apcDisponivel ? `Ou responda *APC* pra levar o frasco + caixa original (tudo que sobrar, no mesmo preço/ml).` : null,
     "Vamos te chamar no privado com o valor e a chave PIX.",
     p.assinaturaMarca ? `\n${p.assinaturaMarca}` : null,
   ];
