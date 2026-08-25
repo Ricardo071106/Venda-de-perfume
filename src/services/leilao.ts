@@ -193,6 +193,7 @@ export async function registrarLance(input: LanceInput): Promise<ResultadoLance>
       ? `Oi! Você arrematou o *APC* (frasco + caixa) de *${perfume.nome}* — *${formatarMl(quantidadeReal)}*.`
       : `Oi! Você comprou *${formatarMl(quantidadeReal)}* de *${perfume.nome}*.`,
     "",
+    `🧾 Venda #${inserted[0].id}`,
     `💰 Total: *${formatarMoeda(valorTotal)}*`,
     "",
     "💳 Chave PIX para pagamento:",
