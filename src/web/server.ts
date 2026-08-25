@@ -11,6 +11,7 @@ import {
   atualizarPerfume,
   removerPerfume,
   ajustarEstoquePainel,
+  marcarParaAnunciar,
 } from "../services/perfumes.js";
 import { registrarVendaPainel } from "../services/vendas.js";
 import { obterConfiguracoes, salvarConfiguracoes } from "../services/configuracoes.js";
@@ -131,6 +132,22 @@ export function iniciarPainelAdmin(): void {
     }
     try {
       const resultado = await ajustarEstoquePainel(id, Number(deltaMl), typeof motivo === "string" ? motivo : undefined);
+      res.json(resultado);
+    } catch (err) {
+      res.status(400).json({ erro: err instanceof Error ? err.message : String(err) });
+    }
+  });
+
+  /** Força a republicação de um perfume já anunciado no próximo "Atualizar agora" —
+   * sem precisar mudar nenhum dado do cadastro pra disparar isso. */
+  app.post("/api/perfumes/:id/anunciar-de-novo", async (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id)) {
+      res.status(400).json({ erro: "id inválido." });
+      return;
+    }
+    try {
+      const resultado = await marcarParaAnunciar(id);
       res.json(resultado);
     } catch (err) {
       res.status(400).json({ erro: err instanceof Error ? err.message : String(err) });

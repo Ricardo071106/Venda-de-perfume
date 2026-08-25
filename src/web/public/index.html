@@ -495,7 +495,10 @@
             <td class="num">${p.apcPreco != null ? formatarMoeda(p.apcPreco) : "—"}</td>
             <td class="num">${formatarMl(p.estoqueMl)}</td>
             <td>${statusHtml}</td>
-            <td class="row-actions"><button class="btn-secondary btn-sm btn-editar" data-id="${p.id}">Editar</button></td>
+            <td class="row-actions">
+              <button class="btn-secondary btn-sm btn-editar" data-id="${p.id}">Editar</button>
+              <button class="btn-secondary btn-sm btn-anunciar" data-id="${p.id}">Anunciar na próxima atualização</button>
+            </td>
           </tr>
         `;
       }
@@ -536,6 +539,28 @@
       btn.addEventListener("click", () => {
         idsEditando.delete(Number(btn.dataset.id));
         renderTodos(ultimosPerfumes);
+      });
+    });
+    tbody.querySelectorAll(".btn-anunciar").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const id = btn.dataset.id;
+        btn.disabled = true;
+        const textoOriginal = btn.textContent;
+        btn.textContent = "Marcando…";
+        try {
+          const res = await fetch(`/api/perfumes/${id}/anunciar-de-novo`, { method: "POST" });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.erro || "Erro ao marcar pra anunciar");
+          btn.textContent = "Marcado ✓";
+          setTimeout(() => {
+            btn.textContent = textoOriginal;
+            btn.disabled = false;
+          }, 2500);
+        } catch (err) {
+          alert("Erro: " + err.message);
+          btn.textContent = textoOriginal;
+          btn.disabled = false;
+        }
       });
     });
     tbody.querySelectorAll(".btn-salvar").forEach((btn) => {

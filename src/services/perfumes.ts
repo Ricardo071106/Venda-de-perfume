@@ -259,6 +259,27 @@ export async function ajustarEstoquePainel(
   return resultado;
 }
 
+/** Marca um perfume já anunciado antes pra ser republicado no próximo sync que
+ * posta no grupo ("Atualizar agora") — mesmo que nada tenha mudado no cadastro.
+ * Útil pra dar um empurrão de novo num perfume que ainda tem estoque, ou que
+ * acabou de ser reposto. Só funciona se ainda tiver ml disponível: sem estoque
+ * não tem o que anunciar. */
+export async function marcarParaAnunciar(id: number): Promise<{ ok: true }> {
+  const [atual] = await query<{ estoque_ml: number; status: string; postado_em: string | null }>(
+    "SELECT estoque_ml, status, postado_em FROM perfumes WHERE id = $1",
+    [id]
+  );
+  if (!atual) throw new Error("Perfume não encontrado.");
+  if (!atual.postado_em) {
+    throw new Error('Esse perfume ainda não foi postado no grupo — marque "postar no grupo" e sincronize normalmente primeiro.');
+  }
+  if (Number(atual.estoque_ml) <= 0 || atual.status !== "ativo") {
+    throw new Error("Esse perfume está esgotado — reponha o estoque antes de anunciar de novo.");
+  }
+  await query("UPDATE perfumes SET ultimo_conteudo_postado = NULL WHERE id = $1", [id]);
+  return { ok: true };
+}
+
 /** Posta (ou republica, se o conteúdo mudou desde a última vez) um perfume no
  * grupo do WhatsApp e registra o post no banco + na planilha. Antes de um post
  * NOVO (nunca postado ainda), manda um aviso de texto avisando que o leilão vai
