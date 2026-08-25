@@ -112,7 +112,7 @@ export function montarLegendaPerfume(p: {
     .join("\n");
   const linhaApc = p.apcDisponivel
     ? p.apcPreco
-      ? `📦🚀 *APC (frasco + caixa original): ${formatarPreco(p.apcPreco)}*`
+      ? `📦🚀 *APC disponível!* Levando tudo que sobrar no vidro + caixa original: *${formatarPreco(p.apcPreco)}* fixo. Pedindo uma quantidade específica (ex: APC 50), vale o preço/ml normal.`
       : `📦🚀 *APC disponível!* (frasco + caixa original)`
     : null;
 

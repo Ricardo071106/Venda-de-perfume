@@ -126,15 +126,20 @@ export async function registrarLance(input: LanceInput): Promise<ResultadoLance>
       if (input.quantidadeMl > perfume.estoqueMl) {
         return recusa(compradorJid, compradorTelefone, `só restam *${formatarMl(perfume.estoqueMl)}* de *${perfume.nome}* — peça um APC com quantidade menor.`);
       }
+      // Pedido parcial: preço proporcional normal (ml x preço/ml), igual a um pedido
+      // comum — o preço fixo do APC (se tiver) é só pra quem leva TUDO que sobra
+      // (ver abaixo), não faz sentido cobrar o valor do vidro inteiro por uma parte dele.
       quantidadeReal = input.quantidadeMl;
+      valorTotal = Math.round(quantidadeReal * perfume.precoMl * 100) / 100;
     } else {
-      quantidadeReal = perfume.estoqueMl; // "APC" sem número: leva tudo que sobrar
+      // "APC" sem número: leva tudo que sobrar. Preço fixo configurado no cadastro do
+      // perfume tem prioridade (é o "fecha o vidro" por um valor combinado); sem ele,
+      // cai no preço/ml normal.
+      quantidadeReal = perfume.estoqueMl;
+      valorTotal = perfume.apcPreco && perfume.apcPreco > 0
+        ? perfume.apcPreco
+        : Math.round(quantidadeReal * perfume.precoMl * 100) / 100;
     }
-    // Preço fixo configurado no cadastro do perfume tem prioridade; sem ele, cai no
-    // preço/ml normal (comportamento de antes de existir esse campo).
-    valorTotal = perfume.apcPreco && perfume.apcPreco > 0
-      ? perfume.apcPreco
-      : Math.round(quantidadeReal * perfume.precoMl * 100) / 100;
     motivoEstoque = "APC (frasco + caixa) via whatsapp";
   } else {
     const quantidadeMl = input.quantidadeMl ?? 0;
