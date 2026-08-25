@@ -63,9 +63,13 @@ function mapRow(r: PerfumeRow): Perfume {
 }
 
 /** Lista todos os perfumes (disponíveis e esgotados) com todos os campos —
- * usada pelo painel tanto na venda rápida quanto na aba "Todos os perfumes". */
+ * usada pelo painel tanto na venda rápida quanto na aba "Todos os perfumes".
+ * Não inclui perfumes arquivados (removidos do catálogo, mas com histórico
+ * preservado no banco — ver removerPerfume). */
 export async function listarPerfumes(): Promise<Perfume[]> {
-  const rows = await query<PerfumeRow>(`${SELECT_PERFUME} ORDER BY p.status ASC, p.nome ASC`);
+  const rows = await query<PerfumeRow>(
+    `${SELECT_PERFUME} WHERE p.arquivado_em IS NULL ORDER BY p.status ASC, p.nome ASC`
+  );
   return rows.map(mapRow);
 }
 
@@ -203,20 +207,21 @@ export async function atualizarPerfume(id: number, patch: PatchPerfumeInput): Pr
   return (await buscarPerfume(id))!;
 }
 
-/** Remove um perfume do catálogo. Só apaga de verdade se não houver histórico
- * (vendas/movimentos/posts) — nesse caso a exclusão violaria a chave estrangeira
- * e o erro é traduzido pra uma mensagem clara em vez de vazar o erro do Postgres. */
+/** Remove um perfume do catálogo/painel. Se não houver histórico (vendas/
+ * movimentos/posts), apaga a linha de verdade. Se houver — a chave estrangeira
+ * não deixaria apagar mesmo, e não queríamos mesmo: em vez disso, arquiva
+ * (some do painel, mas vendas/movimentos/receita continuam intactos no banco
+ * pra referência financeira). Em ambos os casos a linha da planilha é limpa. */
 export async function removerPerfume(id: number): Promise<void> {
   try {
     await query("DELETE FROM perfumes WHERE id = $1", [id]);
   } catch (err: unknown) {
     const code = (err as { code?: string } | null)?.code;
     if (code === "23503") {
-      throw new Error(
-        "Não é possível remover: esse perfume já tem vendas ou movimentações de estoque registradas. Zere o estoque em vez disso — ele vira 'esgotado' automaticamente."
-      );
+      await query("UPDATE perfumes SET arquivado_em = now() WHERE id = $1", [id]);
+    } else {
+      throw err;
     }
-    throw err;
   }
 
   const sheetRow = await encontrarLinhaDoPerfume(id);

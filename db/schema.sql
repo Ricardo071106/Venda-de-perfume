@@ -89,6 +89,12 @@ ALTER TABLE perfumes ADD COLUMN IF NOT EXISTS apc_disponivel BOOLEAN NOT NULL DE
 -- a nenhum outro campo), configurável junto com o resto do cadastro do perfume.
 ALTER TABLE perfumes ADD COLUMN IF NOT EXISTS apc_preco NUMERIC(10, 2);
 
+-- Idempotente: "remover" um perfume com vendas/movimentos ligados a ele não pode
+-- apagar a linha de verdade (a FK bloqueia, e é assim que queremos — não perder
+-- histórico financeiro). arquivado_em marca esse perfume como removido do
+-- catálogo/painel sem tocar em nada do que já foi vendido.
+ALTER TABLE perfumes ADD COLUMN IF NOT EXISTS arquivado_em TIMESTAMPTZ;
+
 CREATE INDEX IF NOT EXISTS idx_vendas_perfume ON vendas(perfume_id);
 CREATE INDEX IF NOT EXISTS idx_estoque_perfume ON estoque_movimentos(perfume_id);
 CREATE INDEX IF NOT EXISTS idx_posts_grupo_msg ON posts_grupo(whatsapp_message_id);
