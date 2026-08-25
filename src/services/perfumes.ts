@@ -126,10 +126,10 @@ export async function criarPerfume(input: NovoPerfumeInput): Promise<Perfume> {
   );
   const id = inserted.id;
 
-  const sheetRow = await appendRow("Perfumes!A2:N", [
+  const sheetRow = await appendRow("Perfumes!A2:O", [
     id, nome, marca ?? "", composicao ?? "", fotoUrl ?? "", input.mlFrasco, input.precoMl,
     input.custoMl ?? "", estoqueMl, "ativo",
-    input.postarNoGrupo ? "TRUE" : "", "", "", fragranticaUrl ?? "",
+    input.postarNoGrupo ? "TRUE" : "", "", "", fragranticaUrl ?? "", apcDisponivel ? "TRUE" : "",
   ]);
   if (sheetRow) {
     await query("UPDATE perfumes SET sheet_row = $1 WHERE id = $2", [sheetRow, id]);
@@ -188,6 +188,7 @@ export async function atualizarPerfume(id: number, patch: PatchPerfumeInput): Pr
       { range: `Perfumes!G${sheetRow}`, value: precoMl },
       { range: `Perfumes!H${sheetRow}`, value: custoMl ?? "" },
       { range: `Perfumes!N${sheetRow}`, value: fragranticaUrl ?? "" },
+      { range: `Perfumes!O${sheetRow}`, value: apcDisponivel ? "TRUE" : "" },
     ]);
   }
 
@@ -212,7 +213,7 @@ export async function removerPerfume(id: number): Promise<void> {
 
   const sheetRow = await encontrarLinhaDoPerfume(id);
   if (sheetRow) {
-    await clearRange(`Perfumes!A${sheetRow}:N${sheetRow}`);
+    await clearRange(`Perfumes!A${sheetRow}:O${sheetRow}`);
   }
 }
 

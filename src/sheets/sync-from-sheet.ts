@@ -5,12 +5,15 @@ import { registrarEntradaEstoque, registrarSaidaEstoque } from "../services/esto
 // Aba "Perfumes": A id | B nome | C marca | D composicao | E foto_url | F ml_frasco
 //                 G preco_ml | H custo_ml | I estoque_ml | J status
 //                 K postar_no_grupo | L postado | M repor_ml | N fragrantica_url
+//                 O apc_disponivel
 //
 // estoque_ml (I) e status (J, 'ativo'/'esgotado') são espelho do banco: o bot
 // regrava esses valores a cada ciclo, não edite direto ali. Para repor estoque,
 // preencha repor_ml (M) com a quantidade que entrou — o bot soma no banco,
 // volta o status pra 'ativo' se estava esgotado, e limpa a célula.
-const PERFUMES_RANGE = "Perfumes!A2:N";
+// apc_disponivel (O): escreva TRUE/FALSE pra habilitar/desabilitar o APC (frasco +
+// caixa original) desse perfume — dá pra ajustar aqui manualmente, igual no painel.
+const PERFUMES_RANGE = "Perfumes!A2:O";
 
 // Aba "Vendas": A id | B perfume | C cliente | D telefone | E ml_vendido
 //               F valor_total | G forma_pagamento | H data | I origem
@@ -64,7 +67,7 @@ export async function syncPerfumesFromSheet(): Promise<PerfumeParaPostar[]> {
     const [
       idCell, nome, marca, composicao, fotoUrl, mlFrascoStr,
       precoMlStr, custoMlStr, estoqueMlStr, status,
-      postarNoGrupo, postado, reporMlStr, fragranticaUrl,
+      postarNoGrupo, postado, reporMlStr, fragranticaUrl, apcDisponivelStr,
     ] = row;
 
     if (!nome?.trim()) continue; // linha vazia
@@ -72,6 +75,7 @@ export async function syncPerfumesFromSheet(): Promise<PerfumeParaPostar[]> {
     const mlFrasco = Number(mlFrascoStr ?? 0);
     const precoMl = Number(precoMlStr ?? 0);
     const custoMl = custoMlStr ? Number(custoMlStr) : null;
+    const apcDisponivel = String(apcDisponivelStr ?? "").trim().toUpperCase() === "TRUE";
 
     let perfumeId: number;
     let estoqueMl: number;
@@ -83,10 +87,10 @@ export async function syncPerfumesFromSheet(): Promise<PerfumeParaPostar[]> {
       perfumeId = Number(idCell);
       await query(
         `UPDATE perfumes SET nome=$1, marca=$2, composicao=$3, foto_url=$4, ml_frasco=$5,
-         preco_ml=$6, custo_ml=$7,
-         sheet_row=$8, fragrantica_url=$9, atualizado_em=now()
-         WHERE id=$10`,
-        [nome, marca, composicao, fotoUrl, mlFrasco, precoMl, custoMl,
+         preco_ml=$6, custo_ml=$7, apc_disponivel=$8,
+         sheet_row=$9, fragrantica_url=$10, atualizado_em=now()
+         WHERE id=$11`,
+        [nome, marca, composicao, fotoUrl, mlFrasco, precoMl, custoMl, apcDisponivel,
           sheetRow, fragranticaUrl || null, perfumeId]
       );
 
@@ -135,10 +139,10 @@ export async function syncPerfumesFromSheet(): Promise<PerfumeParaPostar[]> {
       estoqueMl = estoqueMlStr ? Number(estoqueMlStr) : mlFrasco;
       const inserted = await query<{ id: number }>(
         `INSERT INTO perfumes (nome, marca, composicao, foto_url, ml_frasco, preco_ml,
-         custo_ml, estoque_ml, status, sheet_row, fragrantica_url)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING id`,
+         custo_ml, estoque_ml, status, sheet_row, fragrantica_url, apc_disponivel)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING id`,
         [nome, marca, composicao, fotoUrl, mlFrasco, precoMl, custoMl,
-          estoqueMl, status || "ativo", sheetRow, fragranticaUrl || null]
+          estoqueMl, status || "ativo", sheetRow, fragranticaUrl || null, apcDisponivel]
       );
       perfumeId = inserted[0].id;
       await updateCell(`Perfumes!A${sheetRow}`, perfumeId);

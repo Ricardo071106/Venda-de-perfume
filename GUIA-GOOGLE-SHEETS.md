@@ -83,9 +83,9 @@ exatos, com maiúscula igual abaixo):
 
 **Aba "Perfumes"** — cole isso na célula A1 e aperte Enter (o Sheets separa
 automaticamente em colunas por causa dos tabs, mas se não separar, digite
-cada nome numa célula da linha 1, de A a N):
+cada nome numa célula da linha 1, de A a O):
 ```
-id	nome	marca	composição	foto_url	ml_frasco	preço_ml	custo_ml	estoque_ml	status	postar_no_grupo	postado	repor_ml	fragrantica_url
+id	nome	marca	composição	foto_url	ml_frasco	preço_ml	custo_ml	estoque_ml	status	postar_no_grupo	postado	repor_ml	fragrantica_url	apc_disponivel
 ```
 - Deixe as colunas `id` e `postado` em branco ao cadastrar um perfume novo —
   quem preenche é o bot, automaticamente.
@@ -104,6 +104,10 @@ id	nome	marca	composição	foto_url	ml_frasco	preço_ml	custo_ml	estoque_ml	stat
 - Editou nome, marca, composição, ml, preço, foto ou Fragrantica de um
   perfume que já foi postado? No próximo "Atualizar agora" o bot manda uma
   mensagem nova no grupo com a informação atualizada.
+- `apc_disponivel`: escreva `TRUE` pra habilitar o APC (frasco físico + caixa
+  original — quem responder *APC* no grupo leva tudo que sobrar, no mesmo
+  preço/ml) desse perfume, ou deixe em branco pra desabilitar. É o mesmo
+  campo que dá pra marcar no painel — os dois lados se atualizam.
 
 **Aba "Vendas"** (linha 1, colunas A a I):
 ```

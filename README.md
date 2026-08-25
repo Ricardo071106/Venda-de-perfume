@@ -30,8 +30,8 @@ Google Sheets (Perfumes / Vendas / Financeiro)
 
 ## Estrutura da planilha
 
-### Aba "Perfumes" (colunas A–N, cabeçalho na linha 1)
-`id | nome | marca | composição | foto_url | ml_frasco | preço_ml | custo_ml | estoque_ml | status | postar_no_grupo | postado | repor_ml | fragrantica_url`
+### Aba "Perfumes" (colunas A–O, cabeçalho na linha 1)
+`id | nome | marca | composição | foto_url | ml_frasco | preço_ml | custo_ml | estoque_ml | status | postar_no_grupo | postado | repor_ml | fragrantica_url | apc_disponivel`
 
 - `id`, `postado` são preenchidos automaticamente pelo bot — deixar em branco ao cadastrar.
 - `foto_url` deve ser um link público (ex: link de compartilhamento do Google Drive com permissão "qualquer pessoa com o link").
@@ -39,6 +39,7 @@ Google Sheets (Perfumes / Vendas / Financeiro)
 - `estoque_ml` e `status`: **espelho do banco, não edite direto** — o bot regrava esses valores a cada ciclo de sync com o que está no Postgres (que é sempre a fonte da verdade). Editar aqui manualmente não tem efeito: no próximo ciclo o bot sobrescreve de volta com o valor real do banco.
 - `repor_ml`: use esta coluna para adicionar estoque (reposição). Digite a quantidade que entrou; o bot soma no banco, registra o movimento e limpa a célula sozinho.
 - `fragrantica_url`: opcional, link da página do perfume no Fragrantica — aparece no post do grupo (formato inspirado no grupo "Privé SPLITS", usado como referência visual).
+- `apc_disponivel`: escreva `TRUE` pra habilitar o APC (arrematar o frasco físico + caixa original, respondendo *APC* no grupo) desse perfume, ou deixe em branco/`FALSE` pra desabilitar. Mesmo campo editável no painel — planilha e painel se atualizam um ao outro a cada sync.
 - Se um perfume já postado tiver algum desses campos alterado (nome, marca, composição, ml, preço, foto ou Fragrantica), o bot publica uma **mensagem nova** no grupo no próximo sync, refletindo a mudança.
 
 ### Aba "Vendas" (colunas A–I)

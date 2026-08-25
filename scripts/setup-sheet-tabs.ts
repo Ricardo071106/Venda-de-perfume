@@ -7,7 +7,7 @@ const ABAS: Record<string, string[]> = {
   Perfumes: [
     "id", "nome", "marca", "composição", "foto_url", "ml_frasco",
     "preço_ml", "custo_ml", "estoque_ml", "status",
-    "postar_no_grupo", "postado", "repor_ml", "fragrantica_url",
+    "postar_no_grupo", "postado", "repor_ml", "fragrantica_url", "apc_disponivel",
   ],
   Vendas: [
     "id", "perfume", "cliente", "telefone", "ml_vendido",
