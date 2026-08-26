@@ -111,10 +111,10 @@ export async function registrarLance(input: LanceInput): Promise<ResultadoLance>
 
   if (input.tipo === "apc") {
     if (!perfume.apcDisponivel) {
-      return recusa(compradorJid, compradorTelefone, `*${perfume.nome}* não tem opção de APC (frasco + caixa) disponível.`);
+      return recusa(compradorJid, compradorTelefone, `*${perfume.nome}* não tem opção de *APC* disponível.`);
     }
     if (perfume.estoqueMl <= 0) {
-      return recusa(compradorJid, compradorTelefone, `*${perfume.nome}* já esgotou, não dá mais pra arrematar o APC.`);
+      return recusa(compradorJid, compradorTelefone, `*${perfume.nome}* já esgotou, não dá mais pra arrematar o *APC*.`);
     }
     // Mínimo/padrão configurado no cadastro do perfume tem prioridade; sem ele, cai em
     // 50% (do vidro pro mínimo de pedido específico; do estoque atual pro padrão do
@@ -125,10 +125,10 @@ export async function registrarLance(input: LanceInput): Promise<ResultadoLance>
       // "APC 50" — quantidade específica pra entregar no frasco físico + caixa.
       // Abaixo do mínimo não compensa abrir mão do frasco original.
       if (input.quantidadeMl < minimoApc) {
-        return recusa(compradorJid, compradorTelefone, `o mínimo pro APC é *${formatarMl(minimoApc)}* — peça uma quantidade maior.`);
+        return recusa(compradorJid, compradorTelefone, `o mínimo pro *APC* é *${formatarMl(minimoApc)}* — peça uma quantidade maior.`);
       }
       if (input.quantidadeMl > perfume.estoqueMl) {
-        return recusa(compradorJid, compradorTelefone, `só restam *${formatarMl(perfume.estoqueMl)}* de *${perfume.nome}* — peça um APC com quantidade menor.`);
+        return recusa(compradorJid, compradorTelefone, `só restam *${formatarMl(perfume.estoqueMl)}* de *${perfume.nome}* — peça um *APC* com quantidade menor.`);
       }
       quantidadeReal = input.quantidadeMl;
     } else if (input.completo) {
@@ -148,7 +148,7 @@ export async function registrarLance(input: LanceInput): Promise<ResultadoLance>
     valorTotal = levouTudo && perfume.apcPreco && perfume.apcPreco > 0
       ? perfume.apcPreco
       : Math.round(quantidadeReal * perfume.precoMl * 100) / 100;
-    motivoEstoque = "APC (frasco + caixa) via whatsapp";
+    motivoEstoque = "APC via whatsapp";
   } else {
     const quantidadeMl = input.quantidadeMl ?? 0;
     if (quantidadeMl > perfume.estoqueMl) {
@@ -212,7 +212,7 @@ export async function registrarLance(input: LanceInput): Promise<ResultadoLance>
 
   const mensagemPrivada = [
     input.tipo === "apc"
-      ? `Olá! Seu pedido de *APC* (frasco + caixa original) de *${perfume.nome}* foi confirmado — *${formatarMl(quantidadeReal)}*.`
+      ? `Olá! Seu pedido de *APC* de *${perfume.nome}* foi confirmado — *${formatarMl(quantidadeReal)}*.`
       : `Olá! Seu pedido de *${formatarMl(quantidadeReal)}* de *${perfume.nome}* foi confirmado.`,
     "",
     `🧾 Venda #${inserted[0].id}`,
@@ -241,7 +241,7 @@ export async function registrarLance(input: LanceInput): Promise<ResultadoLance>
     mentionJid: compradorJid,
     mensagemGrupo:
       input.tipo === "apc"
-        ? `✅ @${compradorTelefone} arrematou o *APC* de *${perfume.nome}* (${formatarMl(quantidadeReal)}, frasco + caixa)!\n\n*Estoque restante: ${formatarMl(estoqueDepois)}.*`
+        ? `✅ @${compradorTelefone} arrematou o *APC* de *${perfume.nome}* (${formatarMl(quantidadeReal)})!\n\n*Estoque restante: ${formatarMl(estoqueDepois)}.*`
         : `✅ @${compradorTelefone} comprou *${formatarMl(quantidadeReal)}* de *${perfume.nome}*!\n\n*Estoque restante: ${formatarMl(estoqueDepois)}.*`,
     mensagensMarco,
     mensagemEsgotado,

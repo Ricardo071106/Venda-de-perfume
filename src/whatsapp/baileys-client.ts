@@ -115,8 +115,8 @@ export function montarLegendaPerfume(p: {
     .join("\n");
   const linhaApc = p.apcDisponivel
     ? p.apcPreco
-      ? `📦🚀 *APC disponível.* Frasco + caixa original por inteiro: *${formatarPreco(p.apcPreco)}* (valor fixo). Quantidade parcial: preço/ml normal.`
-      : `📦🚀 *APC disponível* (frasco + caixa original).`
+      ? `📦🚀 *APC* disponível. Levando por inteiro: *${formatarPreco(p.apcPreco)}* (valor fixo). Quantidade parcial: preço/ml normal.`
+      : `📦🚀 *APC* disponível.`
     : null;
 
   const linhas = [
@@ -133,9 +133,9 @@ export function montarLegendaPerfume(p: {
     "📋 *Regras de compra:*",
     `• Para adquirir uma quantidade, responda esta mensagem informando o valor desejado em ml (ex.: "3ml", "5ml", "10ml" ou qualquer outra quantidade). Pedido mínimo: ${mlMinimo}ml.`,
     p.apcDisponivel
-      ? `• Para arrematar o frasco físico e a caixa original (APC), responda "APC" — reserva automaticamente ${formatarMl(padraoApcSemNumero)} (padrão) — ou "APC 50" para uma quantidade específica (mínimo de ${formatarMl(minimoApc)}).`
+      ? `• Para arrematar via *APC*, responda "APC" — reserva automaticamente ${formatarMl(padraoApcSemNumero)} (padrão) — ou "APC 50" para uma quantidade específica (mínimo de ${formatarMl(minimoApc)}).`
       : null,
-    p.apcDisponivel ? `• Para levar o frasco por completo, com tudo o que restar no momento, responda "APC completo".` : null,
+    p.apcDisponivel ? `• Para levar tudo o que restar no momento via *APC*, responda "APC completo".` : null,
     `• Em caso de desistência, responda "cancelar" para estornar seu(s) pedido(s) neste perfume.`,
     `• Após a confirmação, você será contatado(a) no privado com o valor total e os dados para pagamento via PIX.`,
     p.assinaturaMarca ? `\n${p.assinaturaMarca}` : null,
