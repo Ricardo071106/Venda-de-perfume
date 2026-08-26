@@ -95,6 +95,10 @@ ALTER TABLE perfumes ADD COLUMN IF NOT EXISTS apc_preco NUMERIC(10, 2);
 -- catálogo/painel sem tocar em nada do que já foi vendido.
 ALTER TABLE perfumes ADD COLUMN IF NOT EXISTS arquivado_em TIMESTAMPTZ;
 
+-- Idempotente: mínimo de ml pro APC com quantidade específica ("APC 50"), configurável
+-- por perfume. Vazio/nulo cai no padrão de 50% do vidro (ml_frasco).
+ALTER TABLE perfumes ADD COLUMN IF NOT EXISTS apc_ml_minimo NUMERIC(10, 2);
+
 CREATE INDEX IF NOT EXISTS idx_vendas_perfume ON vendas(perfume_id);
 CREATE INDEX IF NOT EXISTS idx_estoque_perfume ON estoque_movimentos(perfume_id);
 CREATE INDEX IF NOT EXISTS idx_posts_grupo_msg ON posts_grupo(whatsapp_message_id);

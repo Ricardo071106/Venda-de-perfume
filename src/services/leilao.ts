@@ -15,7 +15,8 @@ export interface PerfumeParaLance {
   postadoEm: string | null;
   apcDisponivel: boolean;
   apcPreco: number | null; // preço fixo do APC (não é ml x preço/ml) — null = usa o preço/ml normal
-  mlFrasco: number; // usado só pra calcular o mínimo do APC com quantidade (50% do vidro)
+  mlFrasco: number; // usado só pra calcular o mínimo padrão do APC (50% do vidro), se apcMlMinimo não tiver sido configurado
+  apcMlMinimo: number | null; // mínimo de ml pro APC com quantidade específica — null = usa 50% do mlFrasco
 }
 
 export interface LanceInput {
@@ -118,10 +119,11 @@ export async function registrarLance(input: LanceInput): Promise<ResultadoLance>
     }
     if (input.quantidadeMl !== undefined) {
       // "APC 50" — quantidade específica pra entregar no frasco físico + caixa.
-      // Mínimo de 50% do vidro: abaixo disso não compensa abrir mão do frasco original.
-      const minimoApc = perfume.mlFrasco * 0.5;
+      // Mínimo configurado no cadastro do perfume tem prioridade; sem ele, cai em 50%
+      // do vidro — abaixo disso não compensa abrir mão do frasco original.
+      const minimoApc = perfume.apcMlMinimo && perfume.apcMlMinimo > 0 ? perfume.apcMlMinimo : perfume.mlFrasco * 0.5;
       if (input.quantidadeMl < minimoApc) {
-        return recusa(compradorJid, compradorTelefone, `o mínimo pro APC é *${formatarMl(minimoApc)}* (50% do vidro de ${formatarMl(perfume.mlFrasco)}) — peça uma quantidade maior, ou *APC* sem número pra levar tudo que sobrar.`);
+        return recusa(compradorJid, compradorTelefone, `o mínimo pro APC é *${formatarMl(minimoApc)}* — peça uma quantidade maior, ou *APC* sem número pra levar tudo que sobrar.`);
       }
       if (input.quantidadeMl > perfume.estoqueMl) {
         return recusa(compradorJid, compradorTelefone, `só restam *${formatarMl(perfume.estoqueMl)}* de *${perfume.nome}* — peça um APC com quantidade menor.`);

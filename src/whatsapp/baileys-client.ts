@@ -103,10 +103,12 @@ export function montarLegendaPerfume(p: {
   fragranticaUrl?: string;
   apcDisponivel?: boolean;
   apcPreco?: number | null;
+  apcMlMinimo?: number | null;
   mlMinimo?: number;
   assinaturaMarca?: string;
 }): string {
   const mlMinimo = p.mlMinimo ?? 3;
+  const minimoApc = p.apcMlMinimo && p.apcMlMinimo > 0 ? p.apcMlMinimo : p.mlFrasco * 0.5;
   const tabelaPreco = QUANTIDADES_TABELA.filter((q) => q >= mlMinimo && q <= p.estoqueMl)
     .map((q) => `${q}ml: ${formatarPreco(q * p.precoMl)}`)
     .join("\n");
@@ -130,7 +132,7 @@ export function montarLegendaPerfume(p: {
     "✅ *Como comprar:*",
     `Responda esta mensagem com a quantidade em ml que quer (múltiplos de 3, 5 ou 10 — ex: *5ml* ou *5*). Mínimo: ${mlMinimo}ml.`,
     p.apcDisponivel
-      ? `Ou responda *APC* pra levar o frasco + caixa original (tudo que sobrar) ou *APC 50* pra pedir uma quantidade específica dentro do vidro (mínimo de ${formatarMl(p.mlFrasco * 0.5)}, 50% do vidro).`
+      ? `Ou responda *APC* pra levar o frasco + caixa original (tudo que sobrar) ou *APC 50* pra pedir uma quantidade específica dentro do vidro (mínimo de ${formatarMl(minimoApc)}).`
       : null,
     "Vamos te chamar no privado com o valor e a chave PIX.",
     "Se mudar de ideia, responda *cancelar* pra desfazer seu(s) lance(s) nesse perfume.",

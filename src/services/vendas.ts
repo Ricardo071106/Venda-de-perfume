@@ -15,6 +15,7 @@ interface PerfumePorMensagem {
   apc_disponivel: boolean;
   apc_preco: number | null;
   ml_frasco: number;
+  apc_ml_minimo: number | null;
 }
 
 export async function buscarPerfumePorMensagemRespondida(
@@ -22,7 +23,7 @@ export async function buscarPerfumePorMensagemRespondida(
 ): Promise<PerfumePorMensagem | null> {
   const rows = await query<PerfumePorMensagem>(
     `SELECT p.id, p.nome, p.estoque_ml, p.preco_ml, p.estoque_inicial_leilao,
-            p.foto_url, p.postado_em, p.apc_disponivel, p.apc_preco, p.ml_frasco
+            p.foto_url, p.postado_em, p.apc_disponivel, p.apc_preco, p.ml_frasco, p.apc_ml_minimo
      FROM posts_grupo pg
      JOIN perfumes p ON p.id = pg.perfume_id
      WHERE pg.whatsapp_message_id = $1
