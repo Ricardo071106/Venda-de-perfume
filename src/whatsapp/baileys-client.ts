@@ -115,8 +115,8 @@ export function montarLegendaPerfume(p: {
     .join("\n");
   const linhaApc = p.apcDisponivel
     ? p.apcPreco
-      ? `📦🚀 *APC disponível!* Levando o vidro + caixa original por inteiro: *${formatarPreco(p.apcPreco)}* fixo. Pedindo uma quantidade parcial, vale o preço/ml normal.`
-      : `📦🚀 *APC disponível!* (frasco + caixa original)`
+      ? `📦🚀 *APC disponível.* Frasco + caixa original por inteiro: *${formatarPreco(p.apcPreco)}* (valor fixo). Quantidade parcial: preço/ml normal.`
+      : `📦🚀 *APC disponível* (frasco + caixa original).`
     : null;
 
   const linhas = [
@@ -130,13 +130,14 @@ export function montarLegendaPerfume(p: {
     linhaApc,
     "-----------------------------",
     "",
-    "✅ *Como comprar:*",
-    `Responda esta mensagem com a quantidade em ml que quer (múltiplos de 3, 5 ou 10 — ex: *5ml* ou *5*). Mínimo: ${mlMinimo}ml.`,
+    "📋 *Regras de compra:*",
+    `• Para adquirir uma quantidade, responda esta mensagem informando o valor desejado em ml (múltiplos de 3, 5 ou 10 — ex.: "5ml" ou "5"). Pedido mínimo: ${mlMinimo}ml.`,
     p.apcDisponivel
-      ? `Ou responda *APC* pra levar o frasco + caixa original com *${formatarMl(padraoApcSemNumero)}* (padrão), ou *APC 50* pra pedir uma quantidade específica (mínimo de ${formatarMl(minimoApc)}) — pedindo a quantidade exata que resta, você leva tudo.`
+      ? `• Para arrematar o frasco físico e a caixa original (APC), responda "APC" — reserva automaticamente ${formatarMl(padraoApcSemNumero)} (padrão) — ou "APC 50" para uma quantidade específica (mínimo de ${formatarMl(minimoApc)}).`
       : null,
-    "Vamos te chamar no privado com o valor e a chave PIX.",
-    "Se mudar de ideia, responda *cancelar* pra desfazer seu(s) lance(s) nesse perfume.",
+    p.apcDisponivel ? `• Para levar o frasco por completo, com tudo o que restar no momento, responda "APC completo".` : null,
+    `• Em caso de desistência, responda "cancelar" para estornar seu(s) pedido(s) neste perfume.`,
+    `• Após a confirmação, você será contatado(a) no privado com o valor total e os dados para pagamento via PIX.`,
     p.assinaturaMarca ? `\n${p.assinaturaMarca}` : null,
   ];
   return linhas.filter((l) => l !== null).join("\n");

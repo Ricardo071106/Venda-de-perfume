@@ -22,7 +22,8 @@ export interface PerfumeParaLance {
 export interface LanceInput {
   perfume: PerfumeParaLance;
   tipo: "quantidade" | "apc";
-  quantidadeMl?: number; // obrigatório quando tipo === "quantidade"; opcional em "apc" (ausente = leva tudo que sobrar)
+  quantidadeMl?: number; // obrigatório quando tipo === "quantidade"; opcional em "apc" (ausente = usa o padrão/completo)
+  completo?: boolean; // só relevante em tipo === "apc" sem quantidadeMl: true = "APC completo" (leva tudo agora)
   compradorJid: string;
   compradorTelefone: string;
   compradorNome: string;
@@ -98,9 +99,9 @@ function recusa(compradorJid: string, compradorTelefone: string, texto: string):
  * quantidade normal (múltiplo de 3/5/10, respeitando o mínimo configurado) ou APC
  * (arremata o frasco físico original + caixa — "APC 50" entrega 50ml dentro do vidro
  * original; "APC" sem número entrega o mínimo/padrão configurado, ou 50% do que resta
- * se não tiver — NÃO leva tudo sozinho, a não ser que o padrão coincida com o restante;
- * pra levar tudo, peça a quantidade exata que sobra. Preço é o apc_preco fixo cadastrado
- * só quando leva tudo; senão, preço/ml normal). Se válido: debita, registra a
+ * se não tiver — NÃO leva tudo sozinho; "APC completo" leva tudo que sobra agora, de
+ * propósito. Preço é o apc_preco fixo cadastrado só quando leva tudo; senão, preço/ml
+ * normal). Se válido: debita, registra a
  * venda (banco é a fonte da verdade, ecoa na planilha), calcula marcos de venda (1/4,
  * 1/3, 1/2, 1/1) com a lista de quem já comprou, e monta a mensagem privada com valor +
  * PIX + pedido de endereço. Se inválido: recusa sem mexer em nada. */
@@ -134,10 +135,12 @@ export async function registrarLance(input: LanceInput): Promise<ResultadoLance>
         return recusa(compradorJid, compradorTelefone, `só restam *${formatarMl(perfume.estoqueMl)}* de *${perfume.nome}* — peça um APC com quantidade menor.`);
       }
       quantidadeReal = input.quantidadeMl;
+    } else if (input.completo) {
+      // "APC completo" — leva tudo que sobra agora, de propósito (ignora o padrão).
+      quantidadeReal = perfume.estoqueMl;
     } else {
-      // "APC" sem número: NÃO leva tudo sozinho — usa o mínimo/padrão configurado (ou
-      // 50% do que resta, se não configurado). Pra levar tudo, peça a quantidade exata
-      // que sobra (ex: "APC 500" se restam 500ml).
+      // "APC" sem número (e sem "completo"): NÃO leva tudo sozinho — usa o mínimo/
+      // padrão configurado (ou 50% do que resta, se não configurado).
       const quantidadePadrao = perfume.apcMlMinimo && perfume.apcMlMinimo > 0 ? perfume.apcMlMinimo : perfume.estoqueMl * 0.5;
       quantidadeReal = Math.min(quantidadePadrao, perfume.estoqueMl);
     }
@@ -216,14 +219,14 @@ export async function registrarLance(input: LanceInput): Promise<ResultadoLance>
 
   const mensagemPrivada = [
     input.tipo === "apc"
-      ? `Oi! Você arrematou o *APC* (frasco + caixa) de *${perfume.nome}* — *${formatarMl(quantidadeReal)}*.`
-      : `Oi! Você comprou *${formatarMl(quantidadeReal)}* de *${perfume.nome}*.`,
+      ? `Olá! Seu pedido de *APC* (frasco + caixa original) de *${perfume.nome}* foi confirmado — *${formatarMl(quantidadeReal)}*.`
+      : `Olá! Seu pedido de *${formatarMl(quantidadeReal)}* de *${perfume.nome}* foi confirmado.`,
     "",
     `🧾 Venda #${inserted[0].id}`,
-    `💰 Total: *${formatarMoeda(valorTotal)}*`,
+    `💰 Valor total: *${formatarMoeda(valorTotal)}*`,
     "",
-    "💳 Chave PIX para pagamento:",
-    config.pixKey?.trim() ? config.pixKey.trim() : "(chave PIX ainda não configurada — a gente te avisa)",
+    "💳 *Dados para pagamento (PIX):*",
+    config.pixKey?.trim() ? config.pixKey.trim() : "(chave PIX ainda não configurada — em breve enviaremos esse dado)",
     "",
     config.textoEndereco,
   ].join("\n");

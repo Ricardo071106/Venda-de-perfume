@@ -134,6 +134,7 @@ export async function tratarMensagemRecebida(msg: WAMessage): Promise<void> {
     },
     tipo: comandoApc ? "apc" : "quantidade",
     quantidadeMl: quantidadeMl ?? undefined,
+    completo: comandoApc?.completo,
     compradorJid: dados.participantJid,
     compradorTelefone: dados.senderPhone,
     compradorNome: dados.pushName || dados.senderPhone,

@@ -41,13 +41,15 @@ export function parseLanceQuantidade(texto: string): number | null {
   return unidade?.toLowerCase() === "l" ? numero * 1000 : numero;
 }
 
-// "APC", "apc 10ml", "APC 50 ml" etc. Com número: quantidade específica pra entregar
-// no frasco físico + caixa (ex: "APC 50" = 50ml, dentro do vidro original). Sem
-// número: leva tudo que sobrar no momento.
-const APC_REGEX = /^apc(?:\s*([\d.,]+)\s*(ml|l)?)?$/i;
+// "APC", "APC completo", "apc 10ml", "APC 50 ml" etc. Com número: quantidade
+// específica pra entregar no frasco físico + caixa (ex: "APC 50" = 50ml, dentro do
+// vidro original). "APC completo": leva tudo que sobrar no momento. Sem número e sem
+// "completo": usa o mínimo/padrão configurado (ou 50% do que resta).
+const APC_REGEX = /^apc(?:\s+(completo)|\s*([\d.,]+)\s*(ml|l)?)?$/i;
 
 export interface ComandoApc {
-  quantidadeMl: number | null; // null = leva tudo que sobrar
+  quantidadeMl: number | null; // null = usa o padrão (mínimo/50%) — a não ser que completo seja true
+  completo: boolean; // true = "APC completo": leva tudo que sobrar agora, ignora o padrão
 }
 
 /** Interpreta um pedido de APC (frasco físico original + caixa). Retorna null se o
@@ -55,12 +57,13 @@ export interface ComandoApc {
 export function parseComandoApc(texto: string): ComandoApc | null {
   const match = texto.trim().match(APC_REGEX);
   if (!match) return null;
-  const [, numeroStr, unidade] = match;
-  if (!numeroStr) return { quantidadeMl: null };
+  const [, completoStr, numeroStr, unidade] = match;
+  if (completoStr) return { quantidadeMl: null, completo: true };
+  if (!numeroStr) return { quantidadeMl: null, completo: false };
   const numero = parseNumeroBr(numeroStr);
-  if (!Number.isFinite(numero) || numero <= 0) return { quantidadeMl: null };
+  if (!Number.isFinite(numero) || numero <= 0) return { quantidadeMl: null, completo: false };
   const quantidadeMl = unidade?.toLowerCase() === "l" ? numero * 1000 : numero;
-  return { quantidadeMl };
+  return { quantidadeMl, completo: false };
 }
 
 const CANCELAR_REGEX = /^cancelar$/i;
