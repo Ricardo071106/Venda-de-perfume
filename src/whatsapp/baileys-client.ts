@@ -115,30 +115,29 @@ export function montarLegendaPerfume(p: {
     .join("\n");
   const linhaApc = p.apcDisponivel
     ? p.apcPreco
-      ? `📦🚀 *APC* disponível. Levando por inteiro: *${formatarPreco(p.apcPreco)}* (valor fixo). Quantidade parcial: preço/ml normal.`
-      : `📦🚀 *APC* disponível.`
+      ? `*APC* disponível (frasco + mínimo ${formatarMl(minimoApc)}). Levando tudo: ${formatarPreco(p.apcPreco)} fixo.`
+      : `*APC* disponível (frasco + mínimo ${formatarMl(minimoApc)}).`
     : null;
 
   const linhas = [
-    `*${p.nome}*${p.marca ? ` (${p.marca})` : ""}`,
-    "",
-    `💰 *${formatarPreco(p.precoMl)}/ml*`,
-    `📦 *Disponível: ${p.estoqueMl}ml* (frasco de ${p.mlFrasco}ml)`,
-    p.composicao ? `\n🌸 ${p.composicao}` : null,
-    p.fragranticaUrl ? `\n🔗 Fragrantica:\n${p.fragranticaUrl}` : null,
-    tabelaPreco ? `\n-----------------------------\n${tabelaPreco}` : null,
+    `${p.nome}${p.marca ? ` (${p.marca})` : ""}`,
+    p.composicao || null,
+    p.fragranticaUrl ? `🔗 Fragrantica:` : null,
+    p.fragranticaUrl ? p.fragranticaUrl : null,
+    `${formatarPreco(p.precoMl)}/ml`,
+    `Disponível: ${p.estoqueMl}ml (frasco de ${p.mlFrasco}ml)`,
+    "-----------------------------",
+    tabelaPreco || null,
     linhaApc,
     "-----------------------------",
-    "",
-    "📋 *Regras de compra:*",
-    `• Para adquirir uma quantidade, responda esta mensagem informando o valor desejado em ml (ex.: "3ml", "5ml", "10ml" ou qualquer outra quantidade). Pedido mínimo: ${mlMinimo}ml.`,
+    "📋 Regras de compra e comandos:",
+    `• Para adquirir uma quantidade (ml), responda o anúncio informando a quantidade desejada em ml (ex.: "5ml" ou "5"). Pedido mínimo: ${mlMinimo}ml.`,
     p.apcDisponivel
-      ? `• Para arrematar via *APC*, responda "APC" — reserva automaticamente ${formatarMl(padraoApcSemNumero)} (padrão) — ou "APC 50" para uma quantidade específica (mínimo de ${formatarMl(minimoApc)}).`
+      ? `• Para arrematar o *APC* (frasco + ml), responda "APC" para reservar ${formatarMl(padraoApcSemNumero)} (padrão) - ou "APC 50" para uma quantidade específica (mínimo ${formatarMl(minimoApc)}) - ou "APC completo" para levar toda a ml disponível no momento.`
       : null,
-    p.apcDisponivel ? `• Para levar tudo o que restar no momento via *APC*, responda "APC completo".` : null,
-    `• Em caso de desistência, responda "cancelar" para estornar seu(s) pedido(s) neste perfume.`,
-    `• Após a confirmação, você será contatado(a) no privado com o valor total e os dados para pagamento via PIX.`,
-    p.assinaturaMarca ? `\n${p.assinaturaMarca}` : null,
+    `• Em caso de desistência da compra, responda o anúncio com "cancelar" para estornar seu(s) pedido(s) neste perfume.`,
+    `• Após a confirmação, você será contatado(a) no privado para pagamento e entrega.`,
+    p.assinaturaMarca || null,
   ];
   return linhas.filter((l) => l !== null).join("\n");
 }
