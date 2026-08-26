@@ -54,10 +54,6 @@ function formatarMoeda(v: number): string {
   return `R$ ${v.toFixed(2).replace(".", ",")}`;
 }
 
-function ehMultiploValido(ml: number): boolean {
-  return Number.isInteger(ml) && (ml % 3 === 0 || ml % 5 === 0 || ml % 10 === 0);
-}
-
 interface Comprador {
   nome: string;
   ml: number;
@@ -96,7 +92,7 @@ function recusa(compradorJid: string, compradorTelefone: string, texto: string):
 }
 
 /** Processa um lance feito por reply no grupo (qualquer participante, não só admin) —
- * quantidade normal (múltiplo de 3/5/10, respeitando o mínimo configurado) ou APC
+ * quantidade normal (qualquer valor, respeitando o mínimo configurado) ou APC
  * (arremata o frasco físico original + caixa — "APC 50" entrega 50ml dentro do vidro
  * original; "APC" sem número entrega o mínimo/padrão configurado, ou 50% do que resta
  * se não tiver — NÃO leva tudo sozinho; "APC completo" leva tudo que sobra agora, de
@@ -160,9 +156,6 @@ export async function registrarLance(input: LanceInput): Promise<ResultadoLance>
     }
     if (quantidadeMl < config.mlMinimo) {
       return recusa(compradorJid, compradorTelefone, `o pedido mínimo é de *${formatarMl(config.mlMinimo)}*.`);
-    }
-    if (!ehMultiploValido(quantidadeMl)) {
-      return recusa(compradorJid, compradorTelefone, `só aceitamos pedidos em múltiplos de 3ml, 5ml ou 10ml (ex: 3, 5, 6, 9, 10, 15, 20...).`);
     }
     quantidadeReal = quantidadeMl;
     valorTotal = Math.round(quantidadeMl * perfume.precoMl * 100) / 100;

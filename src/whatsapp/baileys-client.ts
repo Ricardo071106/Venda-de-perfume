@@ -89,8 +89,8 @@ function formatarMl(v: number): string {
   return Number.isInteger(v) ? `${v}ml` : `${v.toFixed(2)}ml`;
 }
 
-// Quantidades usadas pra montar a tabela de preço pronta na legenda — mesmos
-// valores aceitos como lance (múltiplos de 3, 5 ou 10).
+// Quantidades usadas só como exemplo pronto de preço na legenda — qualquer valor
+// em ml é aceito como lance, essas são apenas sugestões comuns.
 const QUANTIDADES_TABELA = [3, 5, 10];
 
 export function montarLegendaPerfume(p: {
@@ -131,7 +131,7 @@ export function montarLegendaPerfume(p: {
     "-----------------------------",
     "",
     "📋 *Regras de compra:*",
-    `• Para adquirir uma quantidade, responda esta mensagem informando o valor desejado em ml (múltiplos de 3, 5 ou 10 — ex.: "5ml" ou "5"). Pedido mínimo: ${mlMinimo}ml.`,
+    `• Para adquirir uma quantidade, responda esta mensagem informando o valor desejado em ml (ex.: "3ml", "5ml", "10ml" ou qualquer outra quantidade). Pedido mínimo: ${mlMinimo}ml.`,
     p.apcDisponivel
       ? `• Para arrematar o frasco físico e a caixa original (APC), responda "APC" — reserva automaticamente ${formatarMl(padraoApcSemNumero)} (padrão) — ou "APC 50" para uma quantidade específica (mínimo de ${formatarMl(minimoApc)}).`
       : null,
