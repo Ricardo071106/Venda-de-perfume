@@ -97,8 +97,10 @@ function recusa(compradorJid: string, compradorTelefone: string, texto: string):
 /** Processa um lance feito por reply no grupo (qualquer participante, não só admin) —
  * quantidade normal (múltiplo de 3/5/10, respeitando o mínimo configurado) ou APC
  * (arremata o frasco físico original + caixa — "APC 50" entrega 50ml dentro do vidro
- * original; "APC" sem número leva tudo que sobrar; preço é o apc_preco fixo cadastrado,
- * ou o preço/ml normal se não tiver um configurado). Se válido: debita, registra a
+ * original; "APC" sem número entrega o mínimo/padrão configurado, ou 50% do que resta
+ * se não tiver — NÃO leva tudo sozinho, a não ser que o padrão coincida com o restante;
+ * pra levar tudo, peça a quantidade exata que sobra. Preço é o apc_preco fixo cadastrado
+ * só quando leva tudo; senão, preço/ml normal). Se válido: debita, registra a
  * venda (banco é a fonte da verdade, ecoa na planilha), calcula marcos de venda (1/4,
  * 1/3, 1/2, 1/1) com a lista de quem já comprou, e monta a mensagem privada com valor +
  * PIX + pedido de endereço. Se inválido: recusa sem mexer em nada. */
@@ -117,31 +119,36 @@ export async function registrarLance(input: LanceInput): Promise<ResultadoLance>
     if (perfume.estoqueMl <= 0) {
       return recusa(compradorJid, compradorTelefone, `*${perfume.nome}* já esgotou, não dá mais pra arrematar o APC.`);
     }
+    // Mínimo/padrão configurado no cadastro do perfume tem prioridade; sem ele, cai em
+    // 50% (do vidro pro mínimo de pedido específico; do estoque atual pro padrão do
+    // "APC" sem número, já que o vidro pode já estar parcialmente vendido).
+    const minimoApc = perfume.apcMlMinimo && perfume.apcMlMinimo > 0 ? perfume.apcMlMinimo : perfume.mlFrasco * 0.5;
+
     if (input.quantidadeMl !== undefined) {
       // "APC 50" — quantidade específica pra entregar no frasco físico + caixa.
-      // Mínimo configurado no cadastro do perfume tem prioridade; sem ele, cai em 50%
-      // do vidro — abaixo disso não compensa abrir mão do frasco original.
-      const minimoApc = perfume.apcMlMinimo && perfume.apcMlMinimo > 0 ? perfume.apcMlMinimo : perfume.mlFrasco * 0.5;
+      // Abaixo do mínimo não compensa abrir mão do frasco original.
       if (input.quantidadeMl < minimoApc) {
-        return recusa(compradorJid, compradorTelefone, `o mínimo pro APC é *${formatarMl(minimoApc)}* — peça uma quantidade maior, ou *APC* sem número pra levar tudo que sobrar.`);
+        return recusa(compradorJid, compradorTelefone, `o mínimo pro APC é *${formatarMl(minimoApc)}* — peça uma quantidade maior.`);
       }
       if (input.quantidadeMl > perfume.estoqueMl) {
         return recusa(compradorJid, compradorTelefone, `só restam *${formatarMl(perfume.estoqueMl)}* de *${perfume.nome}* — peça um APC com quantidade menor.`);
       }
-      // Pedido parcial: preço proporcional normal (ml x preço/ml), igual a um pedido
-      // comum — o preço fixo do APC (se tiver) é só pra quem leva TUDO que sobra
-      // (ver abaixo), não faz sentido cobrar o valor do vidro inteiro por uma parte dele.
       quantidadeReal = input.quantidadeMl;
-      valorTotal = Math.round(quantidadeReal * perfume.precoMl * 100) / 100;
     } else {
-      // "APC" sem número: leva tudo que sobrar. Preço fixo configurado no cadastro do
-      // perfume tem prioridade (é o "fecha o vidro" por um valor combinado); sem ele,
-      // cai no preço/ml normal.
-      quantidadeReal = perfume.estoqueMl;
-      valorTotal = perfume.apcPreco && perfume.apcPreco > 0
-        ? perfume.apcPreco
-        : Math.round(quantidadeReal * perfume.precoMl * 100) / 100;
+      // "APC" sem número: NÃO leva tudo sozinho — usa o mínimo/padrão configurado (ou
+      // 50% do que resta, se não configurado). Pra levar tudo, peça a quantidade exata
+      // que sobra (ex: "APC 500" se restam 500ml).
+      const quantidadePadrao = perfume.apcMlMinimo && perfume.apcMlMinimo > 0 ? perfume.apcMlMinimo : perfume.estoqueMl * 0.5;
+      quantidadeReal = Math.min(quantidadePadrao, perfume.estoqueMl);
     }
+
+    // Preço fixo do APC (se configurado) só faz sentido pra quem leva TUDO que resta
+    // (seja pedindo a quantidade exata, seja quando o padrão do "APC" sem número
+    // coincide com o que sobra) — fora isso, preço proporcional normal (ml x preço/ml).
+    const levouTudo = quantidadeReal >= perfume.estoqueMl;
+    valorTotal = levouTudo && perfume.apcPreco && perfume.apcPreco > 0
+      ? perfume.apcPreco
+      : Math.round(quantidadeReal * perfume.precoMl * 100) / 100;
     motivoEstoque = "APC (frasco + caixa) via whatsapp";
   } else {
     const quantidadeMl = input.quantidadeMl ?? 0;

@@ -109,12 +109,13 @@ export function montarLegendaPerfume(p: {
 }): string {
   const mlMinimo = p.mlMinimo ?? 3;
   const minimoApc = p.apcMlMinimo && p.apcMlMinimo > 0 ? p.apcMlMinimo : p.mlFrasco * 0.5;
+  const padraoApcSemNumero = p.apcMlMinimo && p.apcMlMinimo > 0 ? p.apcMlMinimo : p.estoqueMl * 0.5;
   const tabelaPreco = QUANTIDADES_TABELA.filter((q) => q >= mlMinimo && q <= p.estoqueMl)
     .map((q) => `${q}ml: ${formatarPreco(q * p.precoMl)}`)
     .join("\n");
   const linhaApc = p.apcDisponivel
     ? p.apcPreco
-      ? `📦🚀 *APC disponível!* Levando tudo que sobrar no vidro + caixa original: *${formatarPreco(p.apcPreco)}* fixo. Pedindo uma quantidade específica (ex: APC 50), vale o preço/ml normal.`
+      ? `📦🚀 *APC disponível!* Levando o vidro + caixa original por inteiro: *${formatarPreco(p.apcPreco)}* fixo. Pedindo uma quantidade parcial, vale o preço/ml normal.`
       : `📦🚀 *APC disponível!* (frasco + caixa original)`
     : null;
 
@@ -132,7 +133,7 @@ export function montarLegendaPerfume(p: {
     "✅ *Como comprar:*",
     `Responda esta mensagem com a quantidade em ml que quer (múltiplos de 3, 5 ou 10 — ex: *5ml* ou *5*). Mínimo: ${mlMinimo}ml.`,
     p.apcDisponivel
-      ? `Ou responda *APC* pra levar o frasco + caixa original (tudo que sobrar) ou *APC 50* pra pedir uma quantidade específica dentro do vidro (mínimo de ${formatarMl(minimoApc)}).`
+      ? `Ou responda *APC* pra levar o frasco + caixa original com *${formatarMl(padraoApcSemNumero)}* (padrão), ou *APC 50* pra pedir uma quantidade específica (mínimo de ${formatarMl(minimoApc)}) — pedindo a quantidade exata que resta, você leva tudo.`
       : null,
     "Vamos te chamar no privado com o valor e a chave PIX.",
     "Se mudar de ideia, responda *cancelar* pra desfazer seu(s) lance(s) nesse perfume.",

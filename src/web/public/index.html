@@ -230,7 +230,7 @@
           <div><label class="field-label">Foto (URL)</label><input class="field" name="fotoUrl" type="url" /></div>
           <div><label class="field-label">Fragrantica (URL)</label><input class="field" name="fragranticaUrl" type="url" /></div>
           <div><label class="field-label">APC — preço fixo (R$, opcional)</label><input class="field" name="apcPreco" type="number" step="0.01" placeholder="deixa em branco pra usar o preço/ml" /></div>
-          <div><label class="field-label">APC — mínimo (ml, opcional)</label><input class="field" name="apcMlMinimo" type="number" step="0.1" placeholder="deixa em branco = 50% do vidro" /></div>
+          <div><label class="field-label">APC — mínimo/padrão (ml, opcional)</label><input class="field" name="apcMlMinimo" type="number" step="0.1" placeholder="deixa em branco = 50%" /></div>
         </div>
         <label style="display:flex; align-items:center; gap:6px; font-size:13px; margin-bottom:8px;">
           <input type="checkbox" name="apcDisponivel" />
@@ -266,7 +266,7 @@
             <tr>
               <th>Nome</th><th>Marca</th><th>Composição</th>
               <th class="num">ml frasco</th><th class="num">Preço/ml</th><th class="num">Custo/ml</th>
-              <th>Foto</th><th>Fragrantica</th><th>APC</th><th class="num">APC preço</th><th class="num">APC mín. (ml)</th>
+              <th>Foto</th><th>Fragrantica</th><th>APC</th><th class="num">APC preço</th><th class="num">APC mín./padrão (ml)</th>
               <th class="num">Estoque</th><th>Status</th><th>Ações</th>
             </tr>
           </thead>
@@ -494,7 +494,7 @@
             <td>${p.fragranticaUrl ? `<a href="${p.fragranticaUrl}" target="_blank" rel="noopener">link</a>` : "—"}</td>
             <td>${p.apcDisponivel ? '<span class="status-tag status-ativo">Sim</span>' : "—"}</td>
             <td class="num">${p.apcPreco != null ? formatarMoeda(p.apcPreco) : "—"}</td>
-            <td class="num">${p.apcMlMinimo != null ? formatarMl(p.apcMlMinimo) : `${formatarMl(p.mlFrasco * 0.5)} (50%)`}</td>
+            <td class="num">${p.apcMlMinimo != null ? formatarMl(p.apcMlMinimo) : "50%"}</td>
             <td class="num">${formatarMl(p.estoqueMl)}</td>
             <td>${statusHtml}</td>
             <td class="row-actions">
@@ -521,7 +521,7 @@
             </label>
           </td>
           <td><input class="field campo" data-campo="apcPreco" type="number" step="0.01" value="${p.apcPreco ?? ""}" placeholder="R$" /></td>
-          <td><input class="field campo" data-campo="apcMlMinimo" type="number" step="0.1" value="${p.apcMlMinimo ?? ""}" placeholder="= 50% do vidro" /></td>
+          <td><input class="field campo" data-campo="apcMlMinimo" type="number" step="0.1" value="${p.apcMlMinimo ?? ""}" placeholder="= 50%" /></td>
           <td class="num">${formatarMl(p.estoqueMl)}</td>
           <td>${statusHtml}</td>
           <td class="row-actions">
