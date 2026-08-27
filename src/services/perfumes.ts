@@ -245,11 +245,16 @@ export interface AjusteEstoqueResultado {
 }
 
 /** Ajuste manual de estoque pelo painel (correção de contagem, perda, achado etc,
- * não uma venda) — delta pode ser positivo (entrada) ou negativo (saída). */
+ * não uma venda) — delta pode ser positivo (entrada) ou negativo (saída).
+ * `anunciarDeNovo`: por padrão um ajuste NÃO força republicação — só correção de
+ * contagem. Se marcado (ex: "comprei mais Xml desse perfume"), força o próximo
+ * "Atualizar agora" a postar de novo no grupo, igual à caixinha "postar no grupo"
+ * de "Adicionar perfume". */
 export async function ajustarEstoquePainel(
   id: number,
   deltaMl: number,
-  motivo?: string
+  motivo?: string,
+  anunciarDeNovo = false
 ): Promise<AjusteEstoqueResultado> {
   if (!Number.isFinite(deltaMl) || deltaMl === 0) {
     throw new Error("Informe uma quantidade diferente de zero.");
@@ -260,7 +265,16 @@ export async function ajustarEstoquePainel(
     throw new Error(`Ajuste inválido: estoque ficaria negativo (atual: ${atual.estoqueMl}ml).`);
   }
 
+  const [{ ultimo_conteudo_postado: hashAntes }] = await query<{ ultimo_conteudo_postado: string | null }>(
+    "SELECT ultimo_conteudo_postado FROM perfumes WHERE id = $1",
+    [id]
+  );
   const resultado = await registrarAjusteEstoque(id, deltaMl, motivo?.trim() || "ajuste manual via painel");
+  if (!anunciarDeNovo && hashAntes !== null) {
+    // registrarAjusteEstoque sempre zera esse campo pra forçar republicação — desfaz
+    // isso quando a caixinha não foi marcada, pra não anunciar de novo à toa.
+    await query("UPDATE perfumes SET ultimo_conteudo_postado = $1 WHERE id = $2", [hashAntes, id]);
+  }
 
   const sheetRow = await encontrarLinhaDoPerfume(id);
   if (sheetRow) {

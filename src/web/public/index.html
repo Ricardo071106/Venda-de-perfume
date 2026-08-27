@@ -418,6 +418,10 @@
             <div class="ajuste-form">
               <input type="number" class="ml-input ajuste-ml" data-id="${p.id}" step="0.5" placeholder="+/- ml" />
               <input type="text" class="motivo-input" data-id="${p.id}" placeholder="motivo (opcional)" />
+              <label style="display:flex; align-items:center; gap:4px; white-space:nowrap; font-size:12px;">
+                <input type="checkbox" class="anunciar-input" data-id="${p.id}" />
+                Anunciar de novo
+              </label>
               <button class="btn-secondary btn-sm btn-ajustar" data-id="${p.id}">Aplicar</button>
             </div>
           </td>
@@ -431,6 +435,7 @@
         const id = btn.dataset.id;
         const mlInput = tbody.querySelector(`.ajuste-ml[data-id="${id}"]`);
         const motivoInput = tbody.querySelector(`.motivo-input[data-id="${id}"]`);
+        const anunciarInput = tbody.querySelector(`.anunciar-input[data-id="${id}"]`);
         const delta = Number(mlInput.value);
         if (!delta) {
           alert("Informe uma quantidade diferente de zero (positiva pra adicionar, negativa pra tirar).");
@@ -441,7 +446,7 @@
           const res = await fetch(`/api/perfumes/${id}/ajuste-estoque`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ deltaMl: delta, motivo: motivoInput.value }),
+            body: JSON.stringify({ deltaMl: delta, motivo: motivoInput.value, anunciarDeNovo: anunciarInput.checked }),
           });
           const data = await res.json();
           if (!res.ok) throw new Error(data.erro || "Erro ao ajustar estoque");

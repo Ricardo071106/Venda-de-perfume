@@ -125,13 +125,18 @@ export function iniciarPainelAdmin(): void {
   /** Ajuste manual de estoque (correção/perda/achado) — não é uma venda, delta pode ser negativo. */
   app.post("/api/perfumes/:id/ajuste-estoque", async (req, res) => {
     const id = Number(req.params.id);
-    const { deltaMl, motivo } = req.body ?? {};
+    const { deltaMl, motivo, anunciarDeNovo } = req.body ?? {};
     if (!Number.isFinite(id) || !Number.isFinite(Number(deltaMl))) {
       res.status(400).json({ erro: "Informe id e deltaMl válidos." });
       return;
     }
     try {
-      const resultado = await ajustarEstoquePainel(id, Number(deltaMl), typeof motivo === "string" ? motivo : undefined);
+      const resultado = await ajustarEstoquePainel(
+        id,
+        Number(deltaMl),
+        typeof motivo === "string" ? motivo : undefined,
+        Boolean(anunciarDeNovo)
+      );
       res.json(resultado);
     } catch (err) {
       res.status(400).json({ erro: err instanceof Error ? err.message : String(err) });
