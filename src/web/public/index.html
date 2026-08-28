@@ -148,6 +148,7 @@
     <button class="tab-btn active" data-tab="dashboard" type="button">Dashboard</button>
     <button class="tab-btn" data-tab="ajuste" type="button">Ajuste rápido</button>
     <button class="tab-btn" data-tab="todos" type="button">Todos os perfumes</button>
+    <button class="tab-btn" data-tab="anuncios" type="button">Anúncios ativos</button>
   </nav>
 
   <section id="tab-dashboard" class="tab-panel">
@@ -268,6 +269,22 @@
               <th class="num">ml frasco</th><th class="num">Preço/ml</th><th class="num">Custo/ml</th>
               <th>Foto</th><th>Fragrantica</th><th>APC</th><th class="num">APC preço</th><th class="num">APC mín./padrão (ml)</th>
               <th class="num">Estoque</th><th>Status</th><th>Ações</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </figure>
+  </section>
+
+  <section id="tab-anuncios" class="tab-panel" hidden>
+    <figure>
+      <figcaption>Anúncios ativos — postados no grupo, ainda vendendo</figcaption>
+      <div class="table-scroll">
+        <table id="tabelaAnuncios">
+          <thead>
+            <tr>
+              <th>Perfume</th><th class="num">Estoque restante</th><th>Postado em</th><th>Ações</th>
             </tr>
           </thead>
           <tbody></tbody>
@@ -602,6 +619,43 @@
     });
   }
 
+  function renderAnuncios(perfumes) {
+    const tbody = document.querySelector("#tabelaAnuncios tbody");
+    const ativos = perfumes.filter((p) => p.postadoEm && p.status === "ativo");
+    if (!ativos.length) {
+      tbody.innerHTML = '<tr><td colspan="4" class="empty">Nenhum anúncio ativo no momento.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = ativos.map((p) => `
+      <tr>
+        <td>${p.nome}${p.marca ? ` <span class="muted">(${p.marca})</span>` : ""}</td>
+        <td class="num">${formatarMl(p.estoqueMl)}</td>
+        <td>${formatarData(p.postadoEm)}</td>
+        <td><button class="btn-danger btn-sm btn-encerrar" data-id="${p.id}">Encerrar venda</button></td>
+      </tr>
+    `).join("");
+
+    tbody.querySelectorAll(".btn-encerrar").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const id = btn.dataset.id;
+        const nome = ativos.find((p) => String(p.id) === id)?.nome ?? "";
+        if (!confirm(`Encerrar a venda de "${nome}" agora, independente do quanto ainda resta? Isso zera o estoque e avisa o grupo que a venda acabou.`)) return;
+        btn.disabled = true;
+        btn.textContent = "Encerrando…";
+        try {
+          const res = await fetch(`/api/perfumes/${id}/encerrar-venda`, { method: "POST" });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.erro || "Erro ao encerrar venda");
+          await carregarTudo();
+        } catch (err) {
+          alert("Erro: " + err.message);
+          btn.disabled = false;
+          btn.textContent = "Encerrar venda";
+        }
+      });
+    });
+  }
+
   function renderTabela(vendas) {
     const tbody = document.querySelector("#tabelaVendas tbody");
     if (!vendas.length) {
@@ -658,6 +712,7 @@
     renderPerfumes(perfumes);
     renderAjuste(perfumes);
     renderTodos(perfumes);
+    renderAnuncios(perfumes);
   }
 
   async function carregarTudo() {

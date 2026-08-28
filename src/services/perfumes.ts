@@ -1,10 +1,12 @@
 import { query } from "../db.js";
-import { enviarFotoNoGrupo, enviarAvisoLeilao, montarLegendaPerfume } from "../whatsapp/baileys-client.js";
+import { enviarFotoNoGrupo, enviarAvisoLeilao, enviarMensagemGrupo, montarLegendaPerfume } from "../whatsapp/baileys-client.js";
 import { marcarPerfumePostado } from "../sheets/write-to-sheet.js";
 import { appendRow, readRange, updateCells, clearRange } from "../sheets/client.js";
 import { registrarAjusteEstoque } from "./estoque.js";
 import { obterConfiguracoes } from "./configuracoes.js";
 import { snapshotConteudoPerfume, type PerfumeParaPostar } from "../sheets/sync-from-sheet.js";
+import { listarCompradores, formatarListaCompradores, montarMensagemEsgotado } from "./leilao.js";
+import { notificarVendaCompleta } from "./notificacaoFinanceiro.js";
 
 export interface Perfume {
   id: number;
@@ -21,6 +23,7 @@ export interface Perfume {
   apcDisponivel: boolean;
   apcPreco: number | null;
   apcMlMinimo: number | null;
+  postadoEm: string | null;
 }
 
 interface PerfumeRow {
@@ -38,12 +41,13 @@ interface PerfumeRow {
   apc_disponivel: boolean;
   apc_preco: number | null;
   apc_ml_minimo: number | null;
+  postado_em: string | null;
 }
 
 const SELECT_PERFUME = `
   SELECT p.id, p.nome, p.marca, p.composicao, p.foto_url, p.fragrantica_url,
          p.ml_frasco, p.preco_ml, p.custo_ml, p.estoque_ml, p.status, p.apc_disponivel, p.apc_preco,
-         p.apc_ml_minimo
+         p.apc_ml_minimo, p.postado_em
   FROM perfumes p
 `;
 
@@ -63,6 +67,7 @@ function mapRow(r: PerfumeRow): Perfume {
     apcDisponivel: r.apc_disponivel,
     apcPreco: r.apc_preco !== null ? Number(r.apc_preco) : null,
     apcMlMinimo: r.apc_ml_minimo !== null ? Number(r.apc_ml_minimo) : null,
+    postadoEm: r.postado_em,
   };
 }
 
@@ -285,6 +290,45 @@ export async function ajustarEstoquePainel(
   }
 
   return resultado;
+}
+
+/** Encerra a venda de um perfume manualmente pelo painel, independente de quanto ml
+ * ainda resta — zera o estoque (fica 'esgotado') e dispara no grupo a mesma mensagem
+ * de fechamento (com foto + lista de compradores) que sairia se ele tivesse esgotado
+ * organicamente por venda, além do relatório financeiro de praxe. */
+export async function encerrarVendaManual(id: number): Promise<{ ok: true }> {
+  const [atual] = await query<{ nome: string; estoque_ml: number; foto_url: string | null; postado_em: string | null }>(
+    "SELECT nome, estoque_ml, foto_url, postado_em FROM perfumes WHERE id = $1",
+    [id]
+  );
+  if (!atual) throw new Error("Perfume não encontrado.");
+  const estoqueAtual = Number(atual.estoque_ml);
+  if (estoqueAtual <= 0) {
+    throw new Error("Esse perfume já está esgotado.");
+  }
+
+  const resultado = await registrarAjusteEstoque(id, -estoqueAtual, "venda encerrada manualmente via painel");
+
+  const sheetRow = await encontrarLinhaDoPerfume(id);
+  if (sheetRow) {
+    await updateCells([
+      { range: `Perfumes!I${sheetRow}`, value: resultado.estoqueMl },
+      { range: `Perfumes!J${sheetRow}`, value: resultado.status },
+    ]);
+  }
+
+  const compradores = await listarCompradores(id, atual.postado_em);
+  const mensagemEsgotado = montarMensagemEsgotado(atual.nome, formatarListaCompradores(compradores));
+
+  if (atual.foto_url) {
+    await enviarFotoNoGrupo({ fotoUrl: atual.foto_url, legenda: mensagemEsgotado });
+  } else {
+    await enviarMensagemGrupo(mensagemEsgotado);
+  }
+
+  await notificarVendaCompleta(id);
+
+  return { ok: true };
 }
 
 /** Marca um perfume já anunciado antes pra ser republicado no próximo sync que

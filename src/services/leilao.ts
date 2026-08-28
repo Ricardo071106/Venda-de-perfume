@@ -61,7 +61,7 @@ interface Comprador {
 
 /** Quem já comprou desse perfume nessa rodada de leilão (desde o post mais recente),
  * agregado por pessoa — usado nas mensagens de marco e na de fechamento. */
-async function listarCompradores(perfumeId: number, postadoEm: string | null): Promise<Comprador[]> {
+export async function listarCompradores(perfumeId: number, postadoEm: string | null): Promise<Comprador[]> {
   const rows = await query<{ nome: string; total_ml: string }>(
     postadoEm
       ? `SELECT c.nome, SUM(v.ml_vendido) AS total_ml
@@ -77,9 +77,22 @@ async function listarCompradores(perfumeId: number, postadoEm: string | null): P
   return rows.map((r) => ({ nome: r.nome, ml: Number(r.total_ml) }));
 }
 
-function formatarListaCompradores(lista: Comprador[]): string {
+export function formatarListaCompradores(lista: Comprador[]): string {
   if (!lista.length) return "(ninguém ainda)";
   return lista.map((c) => `• ${c.nome}: *${formatarMl(c.ml)}*`).join("\n");
+}
+
+/** Mensagem de fechamento de venda (com foto do perfume, na hora de mandar) — usada
+ * tanto quando o perfume esgota organicamente quanto num encerramento manual pelo painel. */
+export function montarMensagemEsgotado(nomePerfume: string, listaCompradoresTexto: string): string {
+  return [
+    `🏁 *Venda encerrada: ${nomePerfume}!*`,
+    "",
+    "👥 *Quem comprou:*",
+    listaCompradoresTexto,
+    "",
+    "Obrigado a todos que compraram 🙏",
+  ].join("\n");
 }
 
 function recusa(compradorJid: string, compradorTelefone: string, texto: string): ResultadoLance {
@@ -224,17 +237,7 @@ export async function registrarLance(input: LanceInput): Promise<ResultadoLance>
     config.textoEndereco,
   ].join("\n");
 
-  const mensagemEsgotado =
-    estoqueDepois <= 0
-      ? [
-          `🏁 *Venda encerrada: ${perfume.nome}!*`,
-          "",
-          "👥 *Quem comprou:*",
-          listaTexto,
-          "",
-          "Obrigado a todos que compraram 🙏",
-        ].join("\n")
-      : undefined;
+  const mensagemEsgotado = estoqueDepois <= 0 ? montarMensagemEsgotado(perfume.nome, listaTexto) : undefined;
 
   return {
     ok: true,

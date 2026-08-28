@@ -12,6 +12,7 @@ import {
   removerPerfume,
   ajustarEstoquePainel,
   marcarParaAnunciar,
+  encerrarVendaManual,
 } from "../services/perfumes.js";
 import { registrarVendaPainel } from "../services/vendas.js";
 import { obterConfiguracoes, salvarConfiguracoes } from "../services/configuracoes.js";
@@ -153,6 +154,23 @@ export function iniciarPainelAdmin(): void {
     }
     try {
       const resultado = await marcarParaAnunciar(id);
+      res.json(resultado);
+    } catch (err) {
+      res.status(400).json({ erro: err instanceof Error ? err.message : String(err) });
+    }
+  });
+
+  /** Encerra a venda de um perfume na marra, independente de quanto ml ainda resta —
+   * zera o estoque e manda a mensagem de fechamento normal (foto + lista de compradores)
+   * pro grupo, igual a um esgotamento orgânico. */
+  app.post("/api/perfumes/:id/encerrar-venda", async (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id)) {
+      res.status(400).json({ erro: "id inválido." });
+      return;
+    }
+    try {
+      const resultado = await encerrarVendaManual(id);
       res.json(resultado);
     } catch (err) {
       res.status(400).json({ erro: err instanceof Error ? err.message : String(err) });
