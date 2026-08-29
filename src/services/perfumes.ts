@@ -21,6 +21,7 @@ export interface Perfume {
   apcPreco: number | null;
   apcMlMinimo: number | null;
   postadoEm: string | null;
+  anuncioAtivo: boolean;
 }
 
 interface PerfumeRow {
@@ -39,12 +40,13 @@ interface PerfumeRow {
   apc_preco: number | null;
   apc_ml_minimo: number | null;
   postado_em: string | null;
+  anuncio_ativo: boolean;
 }
 
 const SELECT_PERFUME = `
   SELECT p.id, p.nome, p.marca, p.composicao, p.foto_url, p.fragrantica_url,
          p.ml_frasco, p.preco_ml, p.custo_ml, p.estoque_ml, p.status, p.apc_disponivel, p.apc_preco,
-         p.apc_ml_minimo, p.postado_em
+         p.apc_ml_minimo, p.postado_em, p.anuncio_ativo
   FROM perfumes p
 `;
 
@@ -65,6 +67,7 @@ function mapRow(r: PerfumeRow): Perfume {
     apcPreco: r.apc_preco !== null ? Number(r.apc_preco) : null,
     apcMlMinimo: r.apc_ml_minimo !== null ? Number(r.apc_ml_minimo) : null,
     postadoEm: r.postado_em,
+    anuncioAtivo: r.anuncio_ativo,
   };
 }
 

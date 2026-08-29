@@ -131,7 +131,7 @@ export async function postarPerfumeNoGrupo(id: number): Promise<void> {
     [id, messageId]
   );
   await query(
-    "UPDATE perfumes SET postado_em = now(), ultimo_conteudo_postado = $1 WHERE id = $2",
+    "UPDATE perfumes SET postado_em = now(), ultimo_conteudo_postado = $1, anuncio_ativo = true WHERE id = $2",
     [conteudoPostado, id]
   );
 }

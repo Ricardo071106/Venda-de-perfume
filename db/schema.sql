@@ -102,6 +102,13 @@ ALTER TABLE perfumes ADD COLUMN IF NOT EXISTS arquivado_em TIMESTAMPTZ;
 -- por perfume. Vazio/nulo cai no padrão de 50% do vidro (ml_frasco).
 ALTER TABLE perfumes ADD COLUMN IF NOT EXISTS apc_ml_minimo NUMERIC(10, 2);
 
+-- Idempotente: flag persistente de "tem um post de verdade ativo agora no grupo" —
+-- usada pela aba "Anúncios ativos" do painel. Só vira true quando um post/republish
+-- realmente sai (postarPerfumeNoGrupo), e SEMPRE volta a false quando o estoque zera
+-- (venda ou "Encerrar venda") — assim um ajuste de estoque que só corrige número (sem
+-- reanunciar) não faz o perfume reaparecer como "ativo" sem ter sido anunciado de novo.
+ALTER TABLE perfumes ADD COLUMN IF NOT EXISTS anuncio_ativo BOOLEAN NOT NULL DEFAULT false;
+
 CREATE INDEX IF NOT EXISTS idx_vendas_perfume ON vendas(perfume_id);
 CREATE INDEX IF NOT EXISTS idx_estoque_perfume ON estoque_movimentos(perfume_id);
 CREATE INDEX IF NOT EXISTS idx_posts_grupo_msg ON posts_grupo(whatsapp_message_id);

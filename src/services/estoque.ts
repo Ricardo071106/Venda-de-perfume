@@ -6,7 +6,10 @@ export interface EstoqueAtualizado {
 }
 
 /** Debita estoque e alterna o status pra 'esgotado' automaticamente quando zera.
- * Único ponto que decrementa estoque (venda via WhatsApp ou painel) — mantém a regra de status consistente em qualquer origem. */
+ * Único ponto que decrementa estoque (venda via WhatsApp ou painel) — mantém a regra
+ * de status consistente em qualquer origem. Zera anuncio_ativo quando esgota: a partir
+ * daí o perfume só volta a aparecer em "Anúncios ativos" se for anunciado de novo de
+ * propósito, não só porque o estoque foi corrigido pra cima depois. */
 export async function registrarSaidaEstoque(
   perfumeId: number,
   ml: number,
@@ -16,6 +19,7 @@ export async function registrarSaidaEstoque(
     `UPDATE perfumes SET
        estoque_ml = estoque_ml - $1,
        status = CASE WHEN estoque_ml - $1 <= 0 THEN 'esgotado' ELSE 'ativo' END,
+       anuncio_ativo = CASE WHEN estoque_ml - $1 <= 0 THEN false ELSE anuncio_ativo END,
        atualizado_em = now()
      WHERE id = $2
      RETURNING estoque_ml, status`,
@@ -28,11 +32,13 @@ export async function registrarSaidaEstoque(
   return { estoqueMl: Number(row.estoque_ml), status: row.status };
 }
 
-/** Ajuste manual de estoque (correção de contagem, perda, etc.) — delta pode ser
- * positivo ou negativo. Diferente de venda/reposição: fica registrado como tipo
- * 'ajuste' em estoque_movimentos, pra não misturar com histórico de vendas de verdade.
- * Zera ultimo_conteudo_postado pra forçar uma republicação no próximo sync — quantidade
- * de frasco mudou, vale avisar o grupo de novo (diferente de venda, que não republica). */
+/** Ajuste manual de estoque (correção de contagem, perda, achado, reabertura por
+ * cancelamento etc) — delta pode ser positivo ou negativo. Diferente de venda: fica
+ * registrado como tipo 'ajuste' em estoque_movimentos. NÃO mexe em ultimo_conteudo_postado
+ * nem em anuncio_ativo quando volta a ter estoque — quem decide se isso deve virar um
+ * post novo é explicitamente quem chama (ver "Anunciar de novo" em perfumes.ts), não
+ * esse ajuste sozinho. Mas ZERA anuncio_ativo se o ajuste esgotar o perfume, pelo mesmo
+ * motivo de registrarSaidaEstoque. */
 export async function registrarAjusteEstoque(
   perfumeId: number,
   deltaMl: number,
@@ -42,7 +48,7 @@ export async function registrarAjusteEstoque(
     `UPDATE perfumes SET
        estoque_ml = estoque_ml + $1,
        status = CASE WHEN estoque_ml + $1 <= 0 THEN 'esgotado' ELSE 'ativo' END,
-       ultimo_conteudo_postado = NULL,
+       anuncio_ativo = CASE WHEN estoque_ml + $1 <= 0 THEN false ELSE anuncio_ativo END,
        atualizado_em = now()
      WHERE id = $2
      RETURNING estoque_ml, status`,
@@ -51,34 +57,6 @@ export async function registrarAjusteEstoque(
   await query(
     "INSERT INTO estoque_movimentos (perfume_id, tipo, ml, motivo) VALUES ($1, 'ajuste', $2, $3)",
     [perfumeId, Math.abs(deltaMl), motivo]
-  );
-  return { estoqueMl: Number(row.estoque_ml), status: row.status };
-}
-
-/** Repõe estoque e volta o status pra 'ativo' quando sai de zero/negativo. Também
- * reinicia a base do leilão (estoque_inicial_leilao) pro novo total — uma reposição
- * é um novo "lote" pra efeito de calcular as frações vendidas no WhatsApp. Zera
- * ultimo_conteudo_postado pra forçar republicação no próximo sync (mesmo motivo do
- * ajuste: chegou frasco novo, vale anunciar de novo pro grupo). */
-export async function registrarEntradaEstoque(
-  perfumeId: number,
-  ml: number,
-  motivo: string
-): Promise<EstoqueAtualizado> {
-  const [row] = await query<{ estoque_ml: number; status: string }>(
-    `UPDATE perfumes SET
-       estoque_ml = estoque_ml + $1,
-       status = CASE WHEN estoque_ml + $1 > 0 THEN 'ativo' ELSE status END,
-       estoque_inicial_leilao = estoque_ml + $1,
-       ultimo_conteudo_postado = NULL,
-       atualizado_em = now()
-     WHERE id = $2
-     RETURNING estoque_ml, status`,
-    [ml, perfumeId]
-  );
-  await query(
-    "INSERT INTO estoque_movimentos (perfume_id, tipo, ml, motivo) VALUES ($1, 'entrada', $2, $3)",
-    [perfumeId, ml, motivo]
   );
   return { estoqueMl: Number(row.estoque_ml), status: row.status };
 }

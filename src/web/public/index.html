@@ -622,7 +622,7 @@
 
   function renderAnuncios(perfumes) {
     const tbody = document.querySelector("#tabelaAnuncios tbody");
-    const ativos = perfumes.filter((p) => p.postadoEm && p.status === "ativo");
+    const ativos = perfumes.filter((p) => p.anuncioAtivo && p.status === "ativo");
     if (!ativos.length) {
       tbody.innerHTML = '<tr><td colspan="4" class="empty">Nenhum anúncio ativo no momento.</td></tr>';
       return;
