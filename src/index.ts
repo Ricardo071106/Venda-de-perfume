@@ -1,4 +1,3 @@
-import { rodarSync } from "./services/sync.js";
 import { iniciarWhatsApp } from "./whatsapp/baileys-client.js";
 import { tratarMensagemRecebida } from "./whatsapp/message-handler.js";
 import { iniciarPainelAdmin } from "./web/server.js";
@@ -11,8 +10,6 @@ async function main() {
   iniciarWhatsApp(tratarMensagemRecebida).catch((err) => {
     console.error("Falha ao conectar ao WhatsApp:", err);
   });
-
-  await rodarSync(); // roda uma vez ao subir; depois só via botão "Atualizar agora" do painel
 }
 
 main().catch((err) => {

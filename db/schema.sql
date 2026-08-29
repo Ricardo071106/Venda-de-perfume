@@ -1,5 +1,8 @@
 -- Schema: venda de perfumes a ml via WhatsApp
--- Postgres é a fonte da verdade; a planilha e o WhatsApp são interfaces de entrada.
+-- Postgres é a fonte única da verdade; painel web e WhatsApp são interfaces de entrada.
+-- (sheet_row e a origem 'manual_planilha' em vendas.origem são vestígios da época em
+-- que uma planilha Google Sheets fazia parte do fluxo — abandonada; mantidos só pra
+-- não quebrar histórico já gravado, não é mais escrito por nada no código atual.)
 
 CREATE TABLE IF NOT EXISTS perfumes (
     id SERIAL PRIMARY KEY,

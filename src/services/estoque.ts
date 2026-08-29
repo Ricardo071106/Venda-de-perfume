@@ -6,7 +6,7 @@ export interface EstoqueAtualizado {
 }
 
 /** Debita estoque e alterna o status pra 'esgotado' automaticamente quando zera.
- * Único ponto que decrementa estoque (venda via WhatsApp, planilha ou painel) — mantém a regra de status consistente em qualquer origem. */
+ * Único ponto que decrementa estoque (venda via WhatsApp ou painel) — mantém a regra de status consistente em qualquer origem. */
 export async function registrarSaidaEstoque(
   perfumeId: number,
   ml: number,

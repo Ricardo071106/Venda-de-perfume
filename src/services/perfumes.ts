@@ -1,12 +1,9 @@
 import { query } from "../db.js";
-import { enviarFotoNoGrupo, enviarAvisoLeilao, enviarMensagemGrupo, montarLegendaPerfume } from "../whatsapp/baileys-client.js";
-import { marcarPerfumePostado } from "../sheets/write-to-sheet.js";
-import { appendRow, readRange, updateCells, clearRange } from "../sheets/client.js";
+import { enviarFotoNoGrupo, enviarMensagemGrupo } from "../whatsapp/baileys-client.js";
 import { registrarAjusteEstoque } from "./estoque.js";
-import { obterConfiguracoes } from "./configuracoes.js";
-import { snapshotConteudoPerfume, type PerfumeParaPostar } from "../sheets/sync-from-sheet.js";
 import { listarCompradores, formatarListaCompradores, montarMensagemEsgotado } from "./leilao.js";
 import { notificarVendaCompleta } from "./notificacaoFinanceiro.js";
+import { postarPerfumeNoGrupo, republicarSeConteudoMudou } from "./publicacao.js";
 
 export interface Perfume {
   id: number;
@@ -87,17 +84,6 @@ export async function buscarPerfume(id: number): Promise<Perfume | null> {
   return rows[0] ? mapRow(rows[0]) : null;
 }
 
-/** Acha a linha (1-indexada) do perfume na aba Perfumes procurando pelo id na coluna A —
- * mais robusto que confiar no sheet_row salvo no banco, que pode estar desatualizado
- * se a planilha foi editada manualmente entre um sync e outro. */
-async function encontrarLinhaDoPerfume(perfumeId: number): Promise<number | null> {
-  const rows = await readRange("Perfumes!A2:A");
-  for (let i = 0; i < rows.length; i++) {
-    if (Number(rows[i][0]) === perfumeId) return i + 2;
-  }
-  return null;
-}
-
 export interface NovoPerfumeInput {
   nome: string;
   marca?: string;
@@ -114,10 +100,10 @@ export interface NovoPerfumeInput {
   apcMlMinimo?: number | null;
 }
 
-/** Cria um perfume novo direto pelo painel: grava no banco e também adiciona a
- * linha correspondente na planilha (com o id já preenchido), pra ficar do mesmo
- * jeito que um perfume criado via planilha + sync — inclusive o "postar no
- * grupo": se marcado, o próximo sync publica ele, igual à planilha. */
+/** Cria um perfume novo direto pelo painel (fonte única de dados — sem planilha).
+ * Se "postar no grupo" for marcado, publica no WhatsApp imediatamente; se o envio
+ * falhar (ex: WhatsApp temporariamente desconectado), o perfume continua criado
+ * normalmente — só loga o erro, dá pra postar depois pela aba "Anúncios ativos". */
 export async function criarPerfume(input: NovoPerfumeInput): Promise<Perfume> {
   const nome = input.nome?.trim();
   if (!nome) throw new Error("Nome é obrigatório.");
@@ -146,13 +132,12 @@ export async function criarPerfume(input: NovoPerfumeInput): Promise<Perfume> {
   );
   const id = inserted.id;
 
-  const sheetRow = await appendRow("Perfumes!A2:O", [
-    id, nome, marca ?? "", composicao ?? "", fotoUrl ?? "", input.mlFrasco, input.precoMl,
-    input.custoMl ?? "", estoqueMl, "ativo",
-    input.postarNoGrupo ? "TRUE" : "", "", "", fragranticaUrl ?? "", apcDisponivel ? "TRUE" : "",
-  ]);
-  if (sheetRow) {
-    await query("UPDATE perfumes SET sheet_row = $1 WHERE id = $2", [sheetRow, id]);
+  if (input.postarNoGrupo) {
+    try {
+      await postarPerfumeNoGrupo(id);
+    } catch (err) {
+      console.error(`Perfume "${nome}" (id ${id}) criado, mas falhou ao postar no grupo:`, err);
+    }
   }
 
   return (await buscarPerfume(id))!;
@@ -170,10 +155,15 @@ export interface PatchPerfumeInput {
   apcDisponivel?: boolean;
   apcPreco?: number | null;
   apcMlMinimo?: number | null;
+  postarNoGrupo?: boolean;
 }
 
 /** Edita os dados cadastrais de um perfume já existente (não move estoque —
- * pra isso ver ajustarEstoquePainel). Reflete a mudança na planilha também. */
+ * pra isso ver ajustarEstoquePainel). Se o perfume já foi postado antes e algo
+ * relevante mudou (nome, marca, composição, ml, preço, foto, fragrantica),
+ * republica automaticamente. Se nunca foi postado e `postarNoGrupo` foi marcado
+ * agora, publica pela primeira vez. Falha de envio ao WhatsApp não derruba a
+ * edição — só fica registrada no log. */
 export async function atualizarPerfume(id: number, patch: PatchPerfumeInput): Promise<Perfume> {
   const atual = await buscarPerfume(id);
   if (!atual) throw new Error("Perfume não encontrado.");
@@ -203,19 +193,14 @@ export async function atualizarPerfume(id: number, patch: PatchPerfumeInput): Pr
     [nome, marca, composicao, fotoUrl, fragranticaUrl, mlFrasco, precoMl, custoMl, apcDisponivel, apcPreco, apcMlMinimo, id]
   );
 
-  const sheetRow = await encontrarLinhaDoPerfume(id);
-  if (sheetRow) {
-    await updateCells([
-      { range: `Perfumes!B${sheetRow}`, value: nome },
-      { range: `Perfumes!C${sheetRow}`, value: marca ?? "" },
-      { range: `Perfumes!D${sheetRow}`, value: composicao ?? "" },
-      { range: `Perfumes!E${sheetRow}`, value: fotoUrl ?? "" },
-      { range: `Perfumes!F${sheetRow}`, value: mlFrasco },
-      { range: `Perfumes!G${sheetRow}`, value: precoMl },
-      { range: `Perfumes!H${sheetRow}`, value: custoMl ?? "" },
-      { range: `Perfumes!N${sheetRow}`, value: fragranticaUrl ?? "" },
-      { range: `Perfumes!O${sheetRow}`, value: apcDisponivel ? "TRUE" : "" },
-    ]);
+  try {
+    if (patch.postarNoGrupo && !atual.postadoEm) {
+      await postarPerfumeNoGrupo(id);
+    } else {
+      await republicarSeConteudoMudou(id);
+    }
+  } catch (err) {
+    console.error(`Perfume "${nome}" (id ${id}) editado, mas falhou ao (re)publicar no grupo:`, err);
   }
 
   return (await buscarPerfume(id))!;
@@ -225,7 +210,7 @@ export async function atualizarPerfume(id: number, patch: PatchPerfumeInput): Pr
  * movimentos/posts), apaga a linha de verdade. Se houver — a chave estrangeira
  * não deixaria apagar mesmo, e não queríamos mesmo: em vez disso, arquiva
  * (some do painel, mas vendas/movimentos/receita continuam intactos no banco
- * pra referência financeira). Em ambos os casos a linha da planilha é limpa. */
+ * pra referência financeira). */
 export async function removerPerfume(id: number): Promise<void> {
   try {
     await query("DELETE FROM perfumes WHERE id = $1", [id]);
@@ -237,11 +222,6 @@ export async function removerPerfume(id: number): Promise<void> {
       throw err;
     }
   }
-
-  const sheetRow = await encontrarLinhaDoPerfume(id);
-  if (sheetRow) {
-    await clearRange(`Perfumes!A${sheetRow}:O${sheetRow}`);
-  }
 }
 
 export interface AjusteEstoqueResultado {
@@ -251,10 +231,9 @@ export interface AjusteEstoqueResultado {
 
 /** Ajuste manual de estoque pelo painel (correção de contagem, perda, achado etc,
  * não uma venda) — delta pode ser positivo (entrada) ou negativo (saída).
- * `anunciarDeNovo`: por padrão um ajuste NÃO força republicação — só correção de
- * contagem. Se marcado (ex: "comprei mais Xml desse perfume"), força o próximo
- * "Atualizar agora" a postar de novo no grupo, igual à caixinha "postar no grupo"
- * de "Adicionar perfume". */
+ * `anunciarDeNovo`: se marcado e o perfume já tiver sido postado antes (ex: "comprei
+ * mais Xml desse perfume"), republica no grupo imediatamente. Sem marcar, o ajuste
+ * só corrige o número, sem mexer no post existente. */
 export async function ajustarEstoquePainel(
   id: number,
   deltaMl: number,
@@ -270,23 +249,14 @@ export async function ajustarEstoquePainel(
     throw new Error(`Ajuste inválido: estoque ficaria negativo (atual: ${atual.estoqueMl}ml).`);
   }
 
-  const [{ ultimo_conteudo_postado: hashAntes }] = await query<{ ultimo_conteudo_postado: string | null }>(
-    "SELECT ultimo_conteudo_postado FROM perfumes WHERE id = $1",
-    [id]
-  );
   const resultado = await registrarAjusteEstoque(id, deltaMl, motivo?.trim() || "ajuste manual via painel");
-  if (!anunciarDeNovo && hashAntes !== null) {
-    // registrarAjusteEstoque sempre zera esse campo pra forçar republicação — desfaz
-    // isso quando a caixinha não foi marcada, pra não anunciar de novo à toa.
-    await query("UPDATE perfumes SET ultimo_conteudo_postado = $1 WHERE id = $2", [hashAntes, id]);
-  }
 
-  const sheetRow = await encontrarLinhaDoPerfume(id);
-  if (sheetRow) {
-    await updateCells([
-      { range: `Perfumes!I${sheetRow}`, value: resultado.estoqueMl },
-      { range: `Perfumes!J${sheetRow}`, value: resultado.status },
-    ]);
+  if (anunciarDeNovo && atual.postadoEm) {
+    try {
+      await postarPerfumeNoGrupo(id);
+    } catch (err) {
+      console.error(`Perfume "${atual.nome}" (id ${id}) ajustado, mas falhou ao republicar no grupo:`, err);
+    }
   }
 
   return resultado;
@@ -307,15 +277,7 @@ export async function encerrarVendaManual(id: number): Promise<{ ok: true }> {
     throw new Error("Esse perfume já está esgotado.");
   }
 
-  const resultado = await registrarAjusteEstoque(id, -estoqueAtual, "venda encerrada manualmente via painel");
-
-  const sheetRow = await encontrarLinhaDoPerfume(id);
-  if (sheetRow) {
-    await updateCells([
-      { range: `Perfumes!I${sheetRow}`, value: resultado.estoqueMl },
-      { range: `Perfumes!J${sheetRow}`, value: resultado.status },
-    ]);
-  }
+  await registrarAjusteEstoque(id, -estoqueAtual, "venda encerrada manualmente via painel");
 
   const compradores = await listarCompradores(id, atual.postado_em);
   const mensagemEsgotado = montarMensagemEsgotado(atual.nome, formatarListaCompradores(compradores));
@@ -331,11 +293,10 @@ export async function encerrarVendaManual(id: number): Promise<{ ok: true }> {
   return { ok: true };
 }
 
-/** Marca um perfume já anunciado antes pra ser republicado no próximo sync que
- * posta no grupo ("Atualizar agora") — mesmo que nada tenha mudado no cadastro.
- * Útil pra dar um empurrão de novo num perfume que ainda tem estoque, ou que
- * acabou de ser reposto. Só funciona se ainda tiver ml disponível: sem estoque
- * não tem o que anunciar. */
+/** Republica um perfume já anunciado antes, agora — mesmo que nada tenha mudado no
+ * cadastro. Útil pra dar um empurrão de novo num perfume que ainda tem estoque, ou
+ * que acabou de ser reposto. Só funciona se ainda tiver ml disponível e já tiver
+ * sido postado antes. */
 export async function marcarParaAnunciar(id: number): Promise<{ ok: true }> {
   const [atual] = await query<{ estoque_ml: number; status: string; postado_em: string | null }>(
     "SELECT estoque_ml, status, postado_em FROM perfumes WHERE id = $1",
@@ -343,68 +304,11 @@ export async function marcarParaAnunciar(id: number): Promise<{ ok: true }> {
   );
   if (!atual) throw new Error("Perfume não encontrado.");
   if (!atual.postado_em) {
-    throw new Error('Esse perfume ainda não foi postado no grupo — marque "postar no grupo" e sincronize normalmente primeiro.');
+    throw new Error('Esse perfume ainda não foi postado no grupo — marque "postar no grupo" ao editar.');
   }
   if (Number(atual.estoque_ml) <= 0 || atual.status !== "ativo") {
     throw new Error("Esse perfume está esgotado — reponha o estoque antes de anunciar de novo.");
   }
-  await query("UPDATE perfumes SET ultimo_conteudo_postado = NULL WHERE id = $1", [id]);
+  await postarPerfumeNoGrupo(id);
   return { ok: true };
-}
-
-/** Posta (ou republica, se o conteúdo mudou desde a última vez) um perfume no
- * grupo do WhatsApp e registra o post no banco + na planilha. Antes de um post
- * NOVO (nunca postado ainda), manda um aviso de texto avisando que o leilão vai
- * abrir — republicação por edição não repete o aviso, só a mensagem principal. */
-export async function postarPerfumeNoGrupo(perfume: PerfumeParaPostar): Promise<void> {
-  const [atual] = await query<{
-    postado_em: string | null;
-    apc_disponivel: boolean;
-    apc_preco: number | null;
-    apc_ml_minimo: number | null;
-  }>(
-    "SELECT postado_em, apc_disponivel, apc_preco, apc_ml_minimo FROM perfumes WHERE id = $1",
-    [perfume.id]
-  );
-  const primeiroPost = !atual?.postado_em;
-  const config = await obterConfiguracoes();
-
-  if (primeiroPost) {
-    await enviarAvisoLeilao(
-      `⚠️ *Atenção!* Vamos abrir a venda de *${perfume.nome}* agora! Fica de olho aqui no grupo 👀`,
-      true
-    );
-  }
-
-  const legenda = montarLegendaPerfume({
-    nome: perfume.nome,
-    marca: perfume.marca,
-    composicao: perfume.composicao,
-    mlFrasco: perfume.mlFrasco,
-    estoqueMl: perfume.estoqueMl,
-    precoMl: perfume.precoMl,
-    fragranticaUrl: perfume.fragranticaUrl,
-    apcDisponivel: Boolean(atual?.apc_disponivel),
-    apcPreco: atual?.apc_preco !== null && atual?.apc_preco !== undefined ? Number(atual.apc_preco) : null,
-    apcMlMinimo: atual?.apc_ml_minimo !== null && atual?.apc_ml_minimo !== undefined ? Number(atual.apc_ml_minimo) : null,
-    mlMinimo: config.mlMinimo,
-    assinaturaMarca: config.assinaturaMarca,
-  });
-
-  const { messageId } = await enviarFotoNoGrupo({
-    fotoUrl: perfume.fotoUrl,
-    legenda,
-  });
-
-  const conteudoPostado = snapshotConteudoPerfume(perfume);
-
-  await query(
-    "INSERT INTO posts_grupo (perfume_id, whatsapp_message_id) VALUES ($1, $2)",
-    [perfume.id, messageId]
-  );
-  await query(
-    "UPDATE perfumes SET postado_em = now(), ultimo_conteudo_postado = $1 WHERE id = $2",
-    [conteudoPostado, perfume.id]
-  );
-  await marcarPerfumePostado(perfume.sheetRow);
 }

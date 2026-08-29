@@ -12,7 +12,7 @@ function formatarMoeda(v: number): string {
 
 /** Manda um relatório de vendas pro número do financeiro (configuração
  * telefone_financeiro) sempre que um perfume esgota de verdade por VENDA
- * (qualquer canal — WhatsApp, painel, planilha; não dispara em ajuste de
+ * (qualquer canal — WhatsApp ou painel; não dispara em ajuste de
  * estoque). Escopo do relatório: desde o post mais recente do perfume no
  * grupo (mesma rodada mostrada na mensagem de fechamento), ou todo o
  * histórico se ele nunca foi postado. Falha silenciosamente em log — nunca

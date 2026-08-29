@@ -9,11 +9,7 @@ export interface ResumoFinanceiroPerfume {
   lucro_total: number;
 }
 
-/**
- * Resumo de receita/custo/lucro por perfume, com base nas vendas registradas.
- * A aba "Financeiro" da planilha replica essa mesma lógica via QUERY/SUMIF nativos
- * do Sheets; esta função serve para relatórios via código/CLI se necessário.
- */
+/** Resumo de receita/custo/lucro por perfume, com base nas vendas registradas. */
 export async function resumoFinanceiroPorPerfume(): Promise<ResumoFinanceiroPerfume[]> {
   return query<ResumoFinanceiroPerfume>(`
     SELECT

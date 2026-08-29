@@ -50,8 +50,6 @@
 
   header { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 24px; flex-wrap: wrap; }
   h1 { font-size: 20px; font-weight: 600; margin: 0; }
-  .sync-status { font-size: 13px; color: var(--text-muted); margin-top: 4px; }
-  .sync-status.erro { color: var(--series-2); }
 
   button {
     font: inherit; font-weight: 600; font-size: 14px;
@@ -136,11 +134,6 @@
   <header>
     <div>
       <h1>Perfume ML Bot — Painel</h1>
-      <div class="sync-status" id="syncStatus">Carregando…</div>
-    </div>
-    <div style="display:flex; gap:8px;">
-      <button id="btnSyncDados" class="btn-secondary" title="Alinha planilha, banco e painel — não posta nada no grupo">Sincronizar dados</button>
-      <button id="btnSync">Atualizar agora</button>
     </div>
   </header>
 
@@ -239,7 +232,7 @@
         </label>
         <label style="display:flex; align-items:center; gap:6px; font-size:13px; margin-bottom:12px;">
           <input type="checkbox" name="postarNoGrupo" />
-          Postar no grupo do WhatsApp no próximo "Atualizar agora"
+          Postar no grupo do WhatsApp assim que salvar
         </label>
         <button type="submit">Adicionar perfume</button>
       </form>
@@ -521,7 +514,7 @@
             <td>${statusHtml}</td>
             <td class="row-actions">
               <button class="btn-secondary btn-sm btn-editar" data-id="${p.id}">Editar</button>
-              <button class="btn-secondary btn-sm btn-anunciar" data-id="${p.id}">Anunciar na próxima atualização</button>
+              ${p.postadoEm ? `<button class="btn-secondary btn-sm btn-anunciar" data-id="${p.id}">Anunciar de novo</button>` : ""}
             </td>
           </tr>
         `;
@@ -547,6 +540,12 @@
           <td class="num">${formatarMl(p.estoqueMl)}</td>
           <td>${statusHtml}</td>
           <td class="row-actions">
+            ${!p.postadoEm ? `
+              <label style="display:flex; align-items:center; gap:4px; white-space:nowrap; font-size:12px;">
+                <input type="checkbox" class="postar-no-grupo-input" data-id="${p.id}" />
+                Postar no grupo
+              </label>
+            ` : ""}
             <button class="btn-sm btn-salvar" data-id="${p.id}">Salvar</button>
             <button class="btn-secondary btn-sm btn-cancelar" data-id="${p.id}">Cancelar</button>
           </td>
@@ -571,12 +570,12 @@
         const id = btn.dataset.id;
         btn.disabled = true;
         const textoOriginal = btn.textContent;
-        btn.textContent = "Marcando…";
+        btn.textContent = "Publicando…";
         try {
           const res = await fetch(`/api/perfumes/${id}/anunciar-de-novo`, { method: "POST" });
           const data = await res.json();
-          if (!res.ok) throw new Error(data.erro || "Erro ao marcar pra anunciar");
-          btn.textContent = "Marcado ✓";
+          if (!res.ok) throw new Error(data.erro || "Erro ao publicar");
+          btn.textContent = "Publicado ✓";
           setTimeout(() => {
             btn.textContent = textoOriginal;
             btn.disabled = false;
@@ -600,6 +599,8 @@
           else if (nomeCampo === "apcDisponivel") campos[nomeCampo] = input.checked;
           else campos[nomeCampo] = input.value;
         });
+        const postarInput = row.querySelector(`.postar-no-grupo-input[data-id="${id}"]`);
+        if (postarInput) campos.postarNoGrupo = postarInput.checked;
         btn.disabled = true;
         try {
           const res = await fetch(`/api/perfumes/${id}`, {
@@ -668,40 +669,20 @@
         <td>${v.cliente}</td>
         <td class="num">${formatarMl(v.ml)}</td>
         <td class="num">${formatarMoeda(v.valor)}</td>
-        <td><span class="origem-tag">${v.origem === "whatsapp_bot" ? "WhatsApp" : "Planilha"}</span></td>
+        <td><span class="origem-tag">${v.origem === "whatsapp_bot" ? "WhatsApp" : v.origem === "painel_web" ? "Painel" : "Planilha (histórico)"}</span></td>
         <td>${formatarData(v.data)}</td>
       </tr>
     `).join("");
   }
 
-  function renderSyncStatus(ultimo) {
-    const el = document.getElementById("syncStatus");
-    if (!ultimo) {
-      el.textContent = "Ainda não sincronizou nesta sessão.";
-      return;
-    }
-    const quando = formatarData(ultimo.executadoEm);
-    if (ultimo.ok) {
-      const postados = ultimo.perfumesPostados.length
-        ? ` · ${ultimo.perfumesPostados.length} perfume(s) postado(s)`
-        : "";
-      el.textContent = `Última sincronização: ${quando}${postados}`;
-      el.classList.remove("erro");
-    } else {
-      el.textContent = `Falha na última sincronização (${quando}): ${ultimo.erro}`;
-      el.classList.add("erro");
-    }
-  }
-
   async function carregarStats() {
     const res = await fetch("/api/stats");
     if (!res.ok) throw new Error("Falha ao carregar estatísticas");
-    const { stats, ultimaSincronizacao } = await res.json();
+    const { stats } = await res.json();
     renderKpis(stats);
     renderBarChart("chartVendas", stats.vendasPorPerfume, "--series-1", formatarMoeda);
     renderBarChart("chartEstoque", stats.estoquePorPerfume, "--series-2", formatarMl);
     renderTabela(stats.vendasRecentes);
-    renderSyncStatus(ultimaSincronizacao);
   }
 
   async function carregarPerfumes() {
@@ -720,8 +701,7 @@
   }
 
   // Configurações do leilão (PIX + texto de endereço) carregam só uma vez ao abrir a
-  // página — não entram no carregarTudo() pra não apagar uma edição em andamento
-  // toda vez que alguém clica em "Atualizar agora".
+  // página — não entram no carregarTudo() pra não apagar uma edição em andamento.
   async function carregarConfiguracoes() {
     const res = await fetch("/api/configuracoes");
     if (!res.ok) throw new Error("Falha ao carregar configurações");
@@ -733,38 +713,6 @@
     form.elements.assinaturaMarca.value = configuracoes.assinaturaMarca ?? "";
     form.elements.telefoneFinanceiro.value = configuracoes.telefoneFinanceiro ?? "";
   }
-
-  document.getElementById("btnSync").addEventListener("click", async () => {
-    const btn = document.getElementById("btnSync");
-    btn.disabled = true;
-    btn.textContent = "Sincronizando…";
-    try {
-      await fetch("/api/sync", { method: "POST" });
-      await carregarTudo();
-    } catch (err) {
-      alert("Erro ao sincronizar: " + err.message);
-    } finally {
-      btn.disabled = false;
-      btn.textContent = "Atualizar agora";
-    }
-  });
-
-  document.getElementById("btnSyncDados").addEventListener("click", async () => {
-    const btn = document.getElementById("btnSyncDados");
-    btn.disabled = true;
-    btn.textContent = "Sincronizando…";
-    try {
-      const res = await fetch("/api/sync-dados", { method: "POST" });
-      const data = await res.json();
-      if (!data.ok) throw new Error(data.erro || "Falha ao sincronizar dados");
-      await carregarTudo();
-    } catch (err) {
-      alert("Erro ao sincronizar dados: " + err.message);
-    } finally {
-      btn.disabled = false;
-      btn.textContent = "Sincronizar dados";
-    }
-  });
 
   document.querySelectorAll(".tab-btn").forEach((btn) => {
     btn.addEventListener("click", () => {
@@ -844,7 +792,7 @@
   });
 
   carregarTudo().catch((err) => {
-    document.getElementById("syncStatus").textContent = "Erro ao carregar: " + err.message;
+    alert("Erro ao carregar dados do painel: " + err.message);
   });
   carregarConfiguracoes().catch((err) => {
     console.error("Falha ao carregar configurações:", err);

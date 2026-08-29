@@ -4,7 +4,6 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { config } from "../config.js";
 import { obterEstatisticas } from "../services/stats.js";
-import { rodarSync, obterUltimoResultadoSync, sincronizarDados } from "../services/sync.js";
 import {
   listarPerfumes,
   criarPerfume,
@@ -57,21 +56,10 @@ export function iniciarPainelAdmin(): void {
   app.get("/api/stats", async (_req, res) => {
     try {
       const stats = await obterEstatisticas();
-      res.json({ stats, ultimaSincronizacao: obterUltimoResultadoSync() });
+      res.json({ stats });
     } catch (err) {
       res.status(500).json({ erro: err instanceof Error ? err.message : String(err) });
     }
-  });
-
-  app.post("/api/sync", async (_req, res) => {
-    const resultado = await rodarSync();
-    res.json(resultado);
-  });
-
-  /** Só alinha planilha <-> banco <-> painel — não posta nada no grupo do WhatsApp. */
-  app.post("/api/sync-dados", async (_req, res) => {
-    const resultado = await sincronizarDados();
-    res.json(resultado);
   });
 
   app.get("/api/perfumes", async (_req, res) => {
@@ -144,8 +132,8 @@ export function iniciarPainelAdmin(): void {
     }
   });
 
-  /** Força a republicação de um perfume já anunciado no próximo "Atualizar agora" —
-   * sem precisar mudar nenhum dado do cadastro pra disparar isso. */
+  /** Republica um perfume já anunciado agora mesmo — sem precisar mudar nenhum
+   * dado do cadastro pra disparar isso. */
   app.post("/api/perfumes/:id/anunciar-de-novo", async (req, res) => {
     const id = Number(req.params.id);
     if (!Number.isFinite(id)) {

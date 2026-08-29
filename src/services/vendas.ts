@@ -1,5 +1,4 @@
 import { query } from "../db.js";
-import { registrarVendaNaPlanilha } from "../sheets/write-to-sheet.js";
 import { registrarSaidaEstoque } from "./estoque.js";
 import { notificarVendaCompleta } from "./notificacaoFinanceiro.js";
 import type { ComandoVenda } from "../whatsapp/commands.js";
@@ -55,7 +54,7 @@ export async function getOrCreateCliente(nome: string, telefone?: string): Promi
   return inserted[0].id;
 }
 
-/** Registra uma venda capturada via comando no WhatsApp: grava no banco e ecoa na planilha. */
+/** Registra uma venda capturada via comando no WhatsApp. */
 export async function registrarVendaWhatsApp(
   perfume: PerfumePorMensagem,
   comando: ComandoVenda
@@ -73,16 +72,6 @@ export async function registrarVendaWhatsApp(
   if (estoqueAntes > 0 && estoqueDepois <= 0) {
     await notificarVendaCompleta(perfume.id);
   }
-
-  await registrarVendaNaPlanilha({
-    vendaId: inserted[0].id,
-    perfumeNome: perfume.nome,
-    clienteNome: comando.clienteNome,
-    mlVendido: comando.mlVendido,
-    valorTotal: comando.valorTotal,
-    data: new Date(),
-    origem: "whatsapp_bot",
-  });
 }
 
 export interface VendaPainelResultado {
@@ -127,16 +116,6 @@ export async function registrarVendaPainel(params: {
   if (estoqueAntes > 0 && estoqueMl <= 0) {
     await notificarVendaCompleta(perfume.id);
   }
-
-  await registrarVendaNaPlanilha({
-    vendaId: inserted[0].id,
-    perfumeNome: perfume.nome,
-    clienteNome: params.clienteNome ?? "",
-    mlVendido: params.mlVendido,
-    valorTotal,
-    data: new Date(),
-    origem: "painel_web",
-  });
 
   return { vendaId: inserted[0].id, valorTotal, estoqueMl, status };
 }

@@ -1,10 +1,9 @@
 import { query } from "../db.js";
 import { registrarSaidaEstoque, registrarAjusteEstoque } from "./estoque.js";
-import { registrarVendaNaPlanilha } from "../sheets/write-to-sheet.js";
-import { readRange, clearRange } from "../sheets/client.js";
 import { getOrCreateCliente } from "./vendas.js";
 import { obterConfiguracoes } from "./configuracoes.js";
 import { notificarVendaCompleta } from "./notificacaoFinanceiro.js";
+import { postarPerfumeNoGrupo } from "./publicacao.js";
 
 export interface PerfumeParaLance {
   id: number;
@@ -110,8 +109,7 @@ function recusa(compradorJid: string, compradorTelefone: string, texto: string):
  * original; "APC" sem número entrega o mínimo/padrão configurado, ou 50% do que resta
  * se não tiver — NÃO leva tudo sozinho; "APC completo" leva tudo que sobra agora, de
  * propósito. Preço é o apc_preco fixo cadastrado só quando leva tudo; senão, preço/ml
- * normal). Se válido: debita, registra a
- * venda (banco é a fonte da verdade, ecoa na planilha), calcula marcos de venda (1/4,
+ * normal). Se válido: debita, registra a venda no banco, calcula marcos de venda (1/4,
  * 1/3, 1/2, 1/1) com a lista de quem já comprou, e monta a mensagem privada com valor +
  * PIX + pedido de endereço. Se inválido: recusa sem mexer em nada. */
 export async function registrarLance(input: LanceInput): Promise<ResultadoLance> {
@@ -201,16 +199,6 @@ export async function registrarLance(input: LanceInput): Promise<ResultadoLance>
     );
   }
 
-  await registrarVendaNaPlanilha({
-    vendaId: inserted[0].id,
-    perfumeNome: perfume.nome,
-    clienteNome: compradorNome,
-    mlVendido: quantidadeReal,
-    valorTotal,
-    data: new Date(),
-    origem: "whatsapp_bot",
-  });
-
   const compradores = await listarCompradores(perfume.id, perfume.postadoEm);
   const listaTexto = formatarListaCompradores(compradores);
 
@@ -260,9 +248,9 @@ export interface ResultadoCancelamento {
 /** Cancela TODOS os lances (normais e/ou APC — não faz diferença, os dois só viram
  * uma linha em `vendas` com o ml que foi tirado do estoque) que esse telefone fez
  * nesse perfume, na rodada atual (desde o post mais recente). Some tudo e devolve
- * ao estoque de uma vez — registrado como ajuste (dispara republicação automática
- * se o perfume tinha esgotado e volta a ter estoque). Apaga as vendas do banco e da
- * planilha, como se nunca tivessem acontecido. */
+ * ao estoque de uma vez — registrado como ajuste, e republica no grupo se o
+ * perfume tinha esgotado e volta a ter estoque. Apaga as vendas do banco, como
+ * se nunca tivessem acontecido. */
 export async function cancelarLances(params: {
   perfumeId: number;
   perfumeNome: string;
@@ -303,14 +291,22 @@ export async function cancelarLances(params: {
   const idsVendas = vendas.map((v) => v.id);
 
   await query("DELETE FROM vendas WHERE id = ANY($1)", [idsVendas]);
+
+  const [{ estoque_ml: estoqueAntesStr }] = await query<{ estoque_ml: string }>(
+    "SELECT estoque_ml FROM perfumes WHERE id = $1",
+    [perfumeId]
+  );
+  const estoqueAntes = Number(estoqueAntesStr);
   const resultado = await registrarAjusteEstoque(perfumeId, totalMl, "cancelamento de lance via whatsapp");
 
-  // Limpa as linhas correspondentes na aba Vendas (elas tinham o id da venda na
-  // coluna A) — como se a venda nunca tivesse sido lançada.
-  const vendasRows = await readRange("Vendas!A2:I");
-  for (let i = 0; i < vendasRows.length; i++) {
-    if (idsVendas.includes(Number(vendasRows[i][0]))) {
-      await clearRange(`Vendas!A${i + 2}:I${i + 2}`);
+  // Se o cancelamento tirou o perfume de esgotado (voltou a ter ml disponível),
+  // republica no grupo pra avisar que abriu de novo — fora isso, fica quieto (não
+  // vale republicar a cada cancelamento parcial de um perfume que já estava ativo).
+  if (estoqueAntes <= 0 && resultado.estoqueMl > 0) {
+    try {
+      await postarPerfumeNoGrupo(perfumeId);
+    } catch (err) {
+      console.error(`Perfume id ${perfumeId} voltou a ter estoque após cancelamento, mas falhou ao republicar:`, err);
     }
   }
 

@@ -7,26 +7,10 @@ function required(name: string): string {
 }
 
 // Cada seção só valida suas variáveis quando é efetivamente acessada (getters),
-// não no import do módulo — assim um script que só usa Sheets (ex: setup-sheets)
-// não quebra por falta de variáveis do WhatsApp que ainda não foram preenchidas.
+// não no import do módulo.
 export const config = {
   get databaseUrl() {
     return required("DATABASE_URL");
-  },
-
-  google: {
-    // Local: aponta pro arquivo baixado do Google Cloud. Produção (Render): em vez de
-    // subir um arquivo, cole o conteúdo dele em base64 numa variável de ambiente comum —
-    // client.ts usa qual dos dois estiver preenchido (base64 tem prioridade).
-    get serviceAccountJsonPath() {
-      return process.env.GOOGLE_SERVICE_ACCOUNT_JSON_PATH || null;
-    },
-    get serviceAccountJsonBase64() {
-      return process.env.GOOGLE_SERVICE_ACCOUNT_JSON_BASE64 || null;
-    },
-    get spreadsheetId() {
-      return required("GOOGLE_SPREADSHEET_ID");
-    },
   },
 
   whatsapp: {
