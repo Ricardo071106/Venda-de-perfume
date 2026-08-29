@@ -8,6 +8,7 @@ import makeWASocket, {
 import { Boom } from "@hapi/boom";
 import qrcodeTerminal from "qrcode-terminal";
 import pino from "pino";
+import { rm } from "node:fs/promises";
 import { config } from "../config.js";
 
 const logger = pino({ level: "silent" });
@@ -16,9 +17,12 @@ let sock: WASocket | null = null;
 
 export type OnMensagem = (msg: WAMessage) => void | Promise<void>;
 
-/** Abre a conexão com o WhatsApp. Na primeira vez, imprime o QR code no terminal
- * pra escanear com o número dedicado do bot. Nas próximas, reusa a sessão salva
- * em config.whatsapp.authFolder e conecta sozinho, sem precisar escanear de novo. */
+/** Abre a conexão com o WhatsApp. Na primeira vez, imprime o QR code nos logs do
+ * serviço (não aparece no painel web) pra escanear com o número dedicado do bot.
+ * Nas próximas, reusa a sessão salva em config.whatsapp.authFolder e conecta
+ * sozinho, sem precisar escanear de novo. Se o WhatsApp desconectar a sessão de
+ * vez (logout — ex: removida pelo celular, ou expirada), apaga a sessão salva e
+ * reconecta sozinho, gerando um QR code novo automaticamente nos logs. */
 export async function iniciarWhatsApp(onMensagem: OnMensagem): Promise<void> {
   const { state, saveCreds } = await useMultiFileAuthState(config.whatsapp.authFolder);
   const { version } = await fetchLatestBaileysVersion();
@@ -45,8 +49,13 @@ export async function iniciarWhatsApp(onMensagem: OnMensagem): Promise<void> {
       console.warn(`Conexão com o WhatsApp caiu (status ${statusCode}).`);
       if (deslogado) {
         console.error(
-          `Sessão desconectada pelo próprio WhatsApp — apague a pasta "${config.whatsapp.authFolder}" e rode de novo pra escanear o QR code.`
+          `Sessão desconectada pelo próprio WhatsApp — apagando a sessão salva ("${config.whatsapp.authFolder}") e gerando um QR code novo automaticamente...`
         );
+        rm(config.whatsapp.authFolder, { recursive: true, force: true })
+          .catch((err) => console.error("Falha ao apagar a sessão antiga:", err))
+          .finally(() => {
+            iniciarWhatsApp(onMensagem).catch((err) => console.error("Falha ao reconectar após logout:", err));
+          });
       } else {
         console.log("Tentando reconectar...");
         iniciarWhatsApp(onMensagem).catch((err) => console.error("Falha ao reconectar:", err));
